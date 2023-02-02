@@ -1,0 +1,215 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\Engine">
+      <UniqueIdentifier>{e6353cdd-2771-43cf-b6b2-de0b78bf895f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Engine">
+      <UniqueIdentifier>{8149a1d0-9a15-4870-a73e-7207f65f17b9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Physics">
+      <UniqueIdentifier>{ed0c6bd9-2913-4b27-8393-7f43a165974d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Physics\CollisionRes">
+      <UniqueIdentifier>{a866a00e-5f4f-45a2-aeab-9b78bff9a6cc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Physics\BroadPhaseCollision">
+      <UniqueIdentifier>{f6ecb756-46fd-4d52-b0ad-faad64c7ceb0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Physics\CollisionGeom">
+      <UniqueIdentifier>{cf8da53f-ecde-498b-bcd0-bb0dd3fb4113}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Physics\RigidbodyDynamics">
+      <UniqueIdentifier>{777eea5b-be07-49f8-8fb8-8e6c49901184}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Physics">
+      <UniqueIdentifier>{216976bd-f527-4241-b2f2-cdf5f6854731}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Physics\RigidbodyDynamics">
+      <UniqueIdentifier>{838e6e42-ba95-4168-809d-5d0cf91b9ad0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Physics\BroadPhaseCollision">
+      <UniqueIdentifier>{6127d43b-49ef-44f9-aaf7-9e7cc1940396}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Physics\CollisionGeom">
+      <UniqueIdentifier>{8641ca2f-8e4f-42a6-9ff5-306c5beb3f4c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Physics\CollisionRes">
+      <UniqueIdentifier>{3f9629ba-5a6e-4a77-83d7-6d7b6269ee86}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Physics\Debug">
+      <UniqueIdentifier>{392286d7-1cfc-4d95-a645-bfc4bc4ffbf6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Physics\Debug">
+      <UniqueIdentifier>{b090916f-cc5a-43db-bb44-b5601f0d2ff7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Application.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameListener.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="FunctionCaller.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="Mesh.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="Shader.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="Window.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="RigidBody.cpp">
+      <Filter>Source Files\Physics\RigidbodyDynamics</Filter>
+    </ClCompile>
+    <ClCompile Include="PhysicsGeometryQueries.cpp">
+      <Filter>Source Files\Physics\CollisionGeom</Filter>
+    </ClCompile>
+    <ClCompile Include="PhysicsGeometry.cpp">
+      <Filter>Source Files\Physics\CollisionGeom</Filter>
+    </ClCompile>
+    <ClCompile Include="AABB.cpp">
+      <Filter>Source Files\Physics\BroadPhaseCollision</Filter>
+    </ClCompile>
+    <ClCompile Include="PhysicsDebugDrawing.cpp">
+      <Filter>Source Files\Physics\Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="Math.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="Camera.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="PhysicsSandboxApp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameTimer.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="pch.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="PhysicsWorld.cpp">
+      <Filter>Source Files\Physics</Filter>
+    </ClCompile>
+    <ClCompile Include="WorldStateRecorder.cpp">
+      <Filter>Source Files\Physics\Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="SceneInspector.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Application.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="BreakableScope.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameListener.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="FunctionCaller.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="Mesh.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="Shader.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="Window.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="RigidBody.h">
+      <Filter>Header Files\Physics\RigidbodyDynamics</Filter>
+    </ClInclude>
+    <ClInclude Include="TypeDefs.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="PhysicsGeometry.h">
+      <Filter>Header Files\Physics\CollisionGeom</Filter>
+    </ClInclude>
+    <ClInclude Include="PhysicsGeometryQueries.h">
+      <Filter>Header Files\Physics\CollisionGeom</Filter>
+    </ClInclude>
+    <ClInclude Include="AABB.h">
+      <Filter>Header Files\Physics\BroadPhaseCollision</Filter>
+    </ClInclude>
+    <ClInclude Include="Math.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="PhysicsDebugDrawing.h">
+      <Filter>Header Files\Physics\Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="Camera.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameTimer.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="PhysicsWorld.h">
+      <Filter>Header Files\Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="PhysicsSandboxApp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="pch.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="WorldStateRecorder.h">
+      <Filter>Header Files\Physics\Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneInspector.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="RigidBody.inl">
+      <Filter>Header Files\Physics\RigidbodyDynamics</Filter>
+    </None>
+    <None Include="PhysicsGeometry.inl">
+      <Filter>Header Files\Physics\CollisionGeom</Filter>
+    </None>
+    <None Include="AABB.inl">
+      <Filter>Header Files\Physics\BroadPhaseCollision</Filter>
+    </None>
+    <None Include="Camera.inl">
+      <Filter>Header Files\Engine</Filter>
+    </None>
+    <None Include="FrameTimer.inl">
+      <Filter>Header Files\Engine</Filter>
+    </None>
+    <None Include="PhysicsWorld.inl">
+      <Filter>Header Files\Physics</Filter>
+    </None>
+    <None Include="default.frag">
+      <Filter>Source Files\Engine</Filter>
+    </None>
+    <None Include="default.vert">
+      <Filter>Source Files\Engine</Filter>
+    </None>
+    <None Include="WorldStateRecorder.inl">
+      <Filter>Header Files\Physics\Debug</Filter>
+    </None>
+  </ItemGroup>
+</Project>

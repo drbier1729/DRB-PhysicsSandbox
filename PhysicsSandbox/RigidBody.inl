@@ -142,6 +142,17 @@ namespace drb {
 			return *this;
 		}
 
+		inline RigidBody& RigidBody::SetMass(Float32 mass)
+		{
+			ASSERT(mass > 0.0f, "Mass must be nonzero");
+
+			invInertiaLocal *= 1.0f / (invMass * mass);
+
+			invMass = 1.0f / mass;
+
+			return *this;
+		}
+
 		inline RigidBody& RigidBody::SetGravityScale(Float32 gravity)
 		{
 			gravityScale = gravity;
@@ -161,31 +172,26 @@ namespace drb {
 			return *this;
 		}
 
+
 		inline RigidBody& RigidBody::SetType(RigidBody::Type type_)
 		{
 			type = type_;
 			return *this;
 		}
 
-		template<Shape T>
-		inline RigidBody& RigidBody::AddCollider(CollisionShape<T> const& shape)
+		inline RigidBody& RigidBody::SetCollisionGeometry(std::shared_ptr<CollisionGeometry const> const& geomPtr)
 		{
-			if constexpr (std::is_same_v<T, Sphere>) {
-				spheres.push_back(shape);
-			}
-			else if constexpr (std::is_same_v<T, Capsule>) {
-				capsules.push_back(shape);
-			}
-			else if constexpr (std::is_same_v<T, Convex>) {
-				hulls.push_back(shape);
-			}
-			else {
-				static_assert(std::false_type<T>::value, "physics::Mesh not supported as RigidBody colliders");
-			}
-
+			geometry = geomPtr;
+			invInertiaLocal = geometry->invInertia;
+			invMass = geometry->invMass;
 			return *this;
 		}
+		
+		inline RigidBody& RigidBody::SetCollisionGeometry(CollisionGeometry const* geomPtr)
+		{
+			auto sharedPtr = std::shared_ptr<CollisionGeometry const>(geomPtr);
+			return SetCollisionGeometry(sharedPtr);
 
-
+		}
 	}
 }

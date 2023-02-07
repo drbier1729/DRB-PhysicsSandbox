@@ -3,6 +3,87 @@
 namespace drb {
 	namespace physics {
 
+		template<Shape ShapeType>
+		CollisionShape<ShapeType>::CollisionShape(ShapeType const& shape_, Mat4 const& transform_, Float32 mass_)
+			: CollisionShapeBase{.transform = transform_, .mass = mass_, .type = ShapeType::type },
+			shape { shape_ }
+		{}
+
+		template<Shape T>
+		CollisionGeometry& CollisionGeometry::AddCollider(T&& shape, CollisionShapeBase&& options)
+		{
+			if constexpr (std::is_same_v<T, Sphere>) {
+				spheres.emplace_back(
+					std::forward<Sphere>(shape),
+					std::forward<Mat4>(options.transform),
+					std::forward<Float32>(options.mass));
+			}
+			else if constexpr (std::is_same_v<T, Capsule>) {
+				capsules.emplace_back(
+					std::forward<Capsule>(shape),
+					std::forward<Mat4>(options.transform),
+					std::forward<Float32>(options.mass));
+			}
+			else if constexpr (std::is_same_v<T, Convex>) {
+				hulls.emplace_back(
+					std::forward<Convex>(shape),
+					std::forward<Mat4>(options.transform),
+					std::forward<Float32>(options.mass));
+			}
+			else {
+				static_assert(std::false_type<T>::value, "physics::Mesh not supported as RigidBody colliders");
+			}
+
+			return *this;
+		}
+
+		template<Shape T>
+		CollisionGeometry& CollisionGeometry::AddCollider(T const& shape, CollisionShapeBase const& options)
+		{
+			if constexpr (std::is_same_v<T, Sphere>) {
+				spheres.emplace_back(shape, options.transform, options.mass);
+			}
+			else if constexpr (std::is_same_v<T, Capsule>) {
+				capsules.emplace_back(shape, options.transform, options.mass);
+			}
+			else if constexpr (std::is_same_v<T, Convex>) {
+				hulls.emplace_back(shape, options.transform, options.mass);
+			}
+			else {
+				static_assert(std::false_type<T>::value, "physics::Mesh not supported as RigidBody colliders");
+			}
+
+			return *this;
+		}
+
+		template<class Fn>
+		void CollisionGeometry::ForEachCollider(Fn fn)
+		{
+			for (auto&& shape : spheres) {
+				fn(shape);
+			}
+			for (auto&& shape : capsules) {
+				fn(shape);
+			}
+			for (auto&& shape : hulls) {
+				fn(shape);
+			}
+		}
+		
+		template<class Fn>
+		void CollisionGeometry::ForEachCollider(Fn fn) const
+		{
+			for (auto&& shape : spheres) {
+				fn(shape);
+			}
+			for (auto&& shape : capsules) {
+				fn(shape);
+			}
+			for (auto&& shape : hulls) {
+				fn(shape);
+			}
+		}
+
 		inline Mat3 ComputeInertiaTensor(Sphere const& sph) {
 			return  0.4f * sph.r * sph.r * Mat3(1);
 		}
@@ -36,7 +117,9 @@ namespace drb {
 		
 		inline Mat3 ComputeInertiaTensor(Convex const& hull) {
 			Mat3 I(0);
-			for (auto&& v : hull.verts) {
+			
+			for (auto&& v : hull.verts) 
+			{
 				I[0][0] += v.y * v.y + v.z * v.z;
 				I[0][1] -= v.x * v.y;
 				I[0][2] -= v.x * v.z;
@@ -53,6 +136,7 @@ namespace drb {
 
 			return I;
 		}
+
 
 		inline Convex MakeBox(Vec3 const& halfwidths) {
 
@@ -120,13 +204,21 @@ namespace drb {
 		}
 
 
-		inline Convex MakeTetrahedron(Vec3 const& p0, Vec3 const& p1, Vec3 const& p2_, Vec3 const& p3_)
-		{
-			// Switch references s.t. triangle p1, p2, p3 is in counterclockwise order
-			Vec3 const a = p2_ - p1, b = p3_ - p1;
-			Bool const swap = glm::dot(glm::cross(a, b), p0) < 0.0f;
-			Vec3 const& p2 = swap ? p3_ : p2_;
-			Vec3 const& p3 = swap ? p2_ : p3_;
+		inline Convex MakeTetrahedron(Vec3 const& p0_, Vec3 const& p1_, Vec3 const& p2_, Vec3 const& p3_)
+		{			
+			// Centroid
+			Vec3 const c = 0.25f * (p0_ + p1_ + p2_ + p3_);
+
+			// Check if we need to swap the vertex order in order for
+			// triangle p1, p2, p3 to be in counterclockwise order
+			Vec3 const a = p2_ - p1_, b = p3_ - p1_;
+			Bool const swap = glm::dot(glm::cross(a, b), p0_) < 0.0f;
+
+			// Shift all points s.t. centroid is at origin, swapping order if needed
+			Vec3 const p0 = p0_ - c;
+			Vec3 const p1 = p1_ - c;
+			Vec3 const p2 = (swap ? p3_ : p2_) - c;
+			Vec3 const p3 = (swap ? p2_ : p3_) - c;
 
 			return Convex{
 
@@ -134,8 +226,8 @@ namespace drb {
 					.min = glm::min(p0, glm::min(p1, glm::min(p2, p3))), 
 					.max = glm::max(p0, glm::max(p1, glm::max(p2, p3))) 
 				},
-				
-				.verts = { p0, p1, p2, p3 },
+
+				.verts = { p0, p1, p2, p3},
 				
 				.edges = {
 					{.next = 2, .twin = 1, .origin = 0, .face = 0}, //  0
@@ -194,6 +286,37 @@ namespace drb {
 			return cvx.bounds.Transformed(rot, pos);
 		}
 	
+
+		inline Polygon FaceAsPolygon(Convex const& hull, Mat4 const& tr, Convex::Face const& face)
+		{
+			Polygon poly{};
+
+			Convex::HalfEdge const start = hull.edges[face.edge];
+			Convex::HalfEdge e = start;
+			do {
+				poly.verts.emplace_back(tr * Vec4(hull.verts[e.origin], 1));
+				e = hull.edges[e.next];
+			} while (e != start);
+
+			return poly;
+		}
+
+
+		inline void ForEachOneRingNeighbor(Convex const& hull, Convex::HalfEdge const& start, std::invocable<Convex::HalfEdge> auto fn)
+		{
+			Convex::HalfEdge const firstNeighbor = hull.edges[start.twin];
+			
+			Convex::HalfEdge neighbor = firstNeighbor;
+			do {
+				// Call function
+				fn( neighbor );
+
+				// Traverse to next neighbor
+				neighbor = hull.edges[hull.edges[neighbor.next].twin];
+
+			} while (neighbor != firstNeighbor);
+		}
+
 		inline Plane MakePlane(Vec3 const& normal, Vec3 const& point) 
 		{
 			return Plane{ .n = normal, .d = glm::dot(normal, point) };
@@ -208,12 +331,7 @@ namespace drb {
 			return MakePlane(n, p0);
 		}
 
-		inline Float32 SignedDistance(Vec3 const& point, Plane const& plane) 
-		{
-			return glm::dot(point, plane.n) - plane.d;
-		}
-
-		inline Plane GetTransformed(Plane const& plane, Mat4 const& transform)
+		inline Plane Transformed(Plane const& plane, Mat4 const& transform)
 		{
 			Vec3 const normal = Mat3(transform) * plane.n;
 			return Plane{
@@ -222,51 +340,20 @@ namespace drb {
 			};
 		}
 
-		inline Segment GetCentralSegment(Capsule const& cap, Mat4 const& tr)
+		inline Segment Transformed(Segment const& seg, Mat4 const& transform)
+		{
+			return Segment{
+				.b = transform * Vec4(seg.b, 1.0f),
+				.e = transform * Vec4(seg.e, 1.0f)
+			};
+		}
+
+
+		inline Segment CentralSegment(Capsule const& cap, Mat4 const& tr)
 		{
 			return Segment{
 				.b = tr * Vec4(0, -cap.h, 0, 1),
 				.e = tr * Vec4(0, cap.h, 0, 1)
-			};
-		}
-
-		// See Ericson Ch. 5
-		inline Ray::CastResult RayCast(Ray const& r, AABB const& aabb)
-		{
-			Float32 tmin = 0.0f;
-			Float32 tmax = std::numeric_limits<Float32>::max();
-
-			// For all three slabs
-			for (Uint32 i = 0u; i < 3u; ++i) 
-			{
-				if (EpsilonEqual(r.d[i], 0.0f)) 
-				{
-					// Ray is parallel to slab. No hit if origin not within slab
-					if (r.p[i] < aabb.min[i] || r.p[i] > aabb.max[i]) {	return Ray::CastResult{}; }
-				}
-				else {
-					// Compute intersection t value of ray with near and far plane of slab
-					Float32 const ood = 1.0f / r.d[i];
-					Float32 t1 = (aabb.min[i] - r.p[i]) * ood;
-					Float32 t2 = (aabb.max[i] - r.p[i]) * ood;
-
-					// Make t1 be intersection with near plane, t2 with far plane
-					if (t1 > t2) { std::swap(t1, t2); }
-
-					// Compute the intersection of slab intersection intervals
-					tmin = std::max(tmin, t1);
-					tmax = std::min(tmax, t2);
-
-					// Exit with no collision as soon as slab intersection becomes empty
-					if (tmin > tmax) { return Ray::CastResult{}; }
-				}
-			}
-		
-			// Ray intersects all 3 slabs. Return point (q) and intersection t value (tmin)
-			return Ray::CastResult{ 
-				.point = r.p + r.d * tmin, 
-				.distance = tmin,
-				.hit = true
 			};
 		}
 	}

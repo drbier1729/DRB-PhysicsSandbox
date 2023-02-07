@@ -2,20 +2,11 @@
 #define DRB_PHYSICSWORLD_H
 
 #include "PhysicsGeometry.h"
+#include "PhysicsGeometryQueries.h"
 #include "RigidBody.h"
 
 namespace drb {
 	namespace physics {
-
-		struct RayCastHit
-		{
-			Ray::CastResult result = {};
-			RigidBody* body = nullptr;
-			CollisionShape<Sphere>* sph = nullptr;
-			CollisionShape<Capsule>* cap = nullptr;
-			CollisionShape<Convex>* cvx = nullptr;
-			CollisionShape<Mesh>* mesh = nullptr;
-		};
 
 		class World
 		{
@@ -28,12 +19,16 @@ namespace drb {
 			// Dynamic and kinematic objects -- capacity == maxBodies
 			std::vector<RigidBody> bodies;
 			
-			// Static collision geometry -- capacity == maxColliders
-			std::vector<CollisionShape<Sphere>>    sphColliders;
-			std::vector<CollisionShape<Capsule>>   capColliders;
-			std::vector<CollisionShape<Convex>>    cvxColliders;
-			std::vector<CollisionShape<Mesh>>	   meshColliders;
+			// RigidBody used to handle collisions with static colliders
+			RigidBody		       worldBody;
 
+			// Static collision geometry -- capacity == maxColliders
+			CollisionGeometry      colliders;
+
+			// Contacts between RigidBody collision geometries
+			std::map<ManifoldKey, ContactManifold> contacts;
+
+			// Simulation variables
 			Uint32 targetSubsteps;
 
 		public:
@@ -54,7 +49,10 @@ namespace drb {
 			inline RigidBody& CreateRigidBody();
 
 			template<Shape T>
-			inline CollisionShape<T>& AddStaticCollider(CollisionShape<T> const& shape);
+			CollisionShape<T>& AddStaticCollider(T&& shape, CollisionShapeBase&& options = {});
+
+			template<Shape T>
+			CollisionShape<T>& AddStaticCollider(T const& shape, CollisionShapeBase const& options = {});
 
 			inline void Clear();
 			
@@ -62,10 +60,12 @@ namespace drb {
 			// collision geometry
 			RayCastHit RayCastQuery(Ray const& r);
 
+
 			// -----------------------------------------------------------------
 			// Accessors
 			// -----------------------------------------------------------------
-
+			
+			// ...
 
 		};
 

@@ -204,6 +204,7 @@
     <ClCompile Include="PhysicsSandboxApp.cpp" />
     <ClCompile Include="PhysicsWorld.cpp" />
     <ClCompile Include="RigidBody.cpp" />
+    <ClCompile Include="SATGJK.cpp" />
     <ClCompile Include="SceneInspector.cpp" />
     <ClCompile Include="WorldStateRecorder.cpp" />
     <ClCompile Include="Shader.cpp">
@@ -236,6 +237,7 @@
     <ClInclude Include="PhysicsSandboxApp.h" />
     <ClInclude Include="PhysicsWorld.h" />
     <ClInclude Include="RigidBody.h" />
+    <ClInclude Include="SATGJK.h" />
     <ClInclude Include="SceneInspector.h" />
     <ClInclude Include="WorldStateRecorder.h" />
     <ClInclude Include="Shader.h" />
@@ -249,8 +251,10 @@
     <None Include="default.vert" />
     <None Include="FrameTimer.inl" />
     <None Include="PhysicsGeometry.inl" />
+    <None Include="PhysicsGeometryQueries.inl" />
     <None Include="PhysicsWorld.inl" />
     <None Include="RigidBody.inl" />
+    <None Include="SATGJK.inl" />
     <None Include="WorldStateRecorder.inl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

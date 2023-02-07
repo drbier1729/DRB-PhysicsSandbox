@@ -1,6 +1,7 @@
 #ifndef DRB_RIGIDBODY_H
 #define DRB_RIGIDBODY_H
 
+#include "AABB.h"
 #include "PhysicsGeometry.h"
 #include "Math.h"
 
@@ -8,7 +9,7 @@ namespace drb {
 	namespace physics {
 
 		// Class for Dynamic and Kinematic physics objects. Static physics objects can just use
-		// the Collidable class in "PhysicsGeometry.h"
+		// the collision geometry directly. See "PhysicsGeometry.h".
 		class alignas(16) RigidBody
 		{
 		public:
@@ -47,24 +48,17 @@ namespace drb {
 			Vec3 accumulatedForces = {}; 
 			Vec3 accumulatedTorques = {};
 
-			Float32 friction = 0.0f;
-			Float32 restitution = 0.0f;
-
 			Float32 linearDamping = 0.0f;
 			Float32 angularDamping = 0.0f;
 
-			std::vector<CollisionShape<Sphere>>  spheres{};
+			Float32 friction = 0.0f;
+			Float32 restitution = 0.0f;
+
+			std::shared_ptr<CollisionGeometry const> geometry = {};
+
+			//class GameObject* owner;
 
 			// -- 192 bytes to here --
-
-			std::vector<CollisionShape<Capsule>> capsules{};
-			std::vector<CollisionShape<Convex>>  hulls{};
-
-			// Can be used for ptr to owner game object, and/or ptr
-			// to existing contact manifolds
-			char pad_2[16];
-
-			// -- 256 bytes total --
 
 		public:
 			// -----------------------------------------------------------------
@@ -96,9 +90,9 @@ namespace drb {
 			inline RigidBody::Type GetType() const;
 
 			// -----------------------------------------------------------------
-			// Setters
+			// Manipulators
 			// -----------------------------------------------------------------
-
+			
 			// these methods may cause craziness if called while the simulation
 			// is running because they invalidate cached contacts and the user
 			// could potentially move body into another body resulting in a
@@ -116,9 +110,8 @@ namespace drb {
 			inline RigidBody& SetLinearVelocity(Vec3 const& newLinearVelocity);
 			inline RigidBody& SetAngularVelocity(Vec3 const& newAngularVelocity);
 
-			// also updates local inertia tensor. maintains relative mass ratios
-			// between CollisionShapes, but scales them. fairly expensive.
-				   RigidBody& SetMass(Float32 mass);
+			// also updates local inertia tensor
+			inline RigidBody& SetMass(Float32 mass);
 
 			inline RigidBody& SetGravityScale(Float32 gravity);
 			inline RigidBody& SetFriction(Float32 friction);
@@ -126,24 +119,8 @@ namespace drb {
 
 			inline RigidBody& SetType(RigidBody::Type type);
 
-
-			// -----------------------------------------------------------------
-			// Setup Methods -- Temporary
-			// -----------------------------------------------------------------
-			
-			// must be called by user after all colliders have been added. computes 
-			// the mass, center of mass, and local inertia tensor. This will also
-			// set the local position of each collider such that the center of 
-			// mass of the body is at the origin, and will return the offset
-			// used for this process (e.g. the coords of the COM in the original
-			// model's space).
-			Vec3              FinalizeCollisionGeometry();
-
-			// It would be ill-advised to call this while the simulation is
-			// running, and must be followed by a call to
-			// FinalizeCollisionGeometry once all colliders have been added.
-			template<Shape T> 
-			inline RigidBody& AddCollider(CollisionShape<T> const& shape);
+			inline RigidBody& SetCollisionGeometry(std::shared_ptr<CollisionGeometry const> const& geomPtr);
+			inline RigidBody& SetCollisionGeometry(CollisionGeometry const* geomPtr);
 
 			
 		private:
@@ -156,10 +133,7 @@ namespace drb {
 			void ProjectVelocities(Float32 h);
 		};
 		
-		// In release build on MSVC, std::vector is 24 bytes. In debug, it is 32.
-		#ifndef _DEBUG
-		static_assert(sizeof(RigidBody) == 256);
-		#endif
+		static_assert(sizeof(RigidBody) == 192);
 	}
 }
 

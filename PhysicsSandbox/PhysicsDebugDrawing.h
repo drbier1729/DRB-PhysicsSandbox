@@ -27,7 +27,7 @@ namespace drb {
 		{
 		private:
 			// Used to store meshes that are not just the standard Cube, Sphere, and Cylinder.
-			std::unordered_map<Convex*, drb::Mesh> meshes;
+			std::unordered_map<Convex const*, drb::Mesh> meshes;
 			
 			ShaderProgram shader;
 			Vec3 lightColor;

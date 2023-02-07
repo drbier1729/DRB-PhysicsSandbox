@@ -18,13 +18,19 @@ namespace drb {
 
 			constexpr bool operator==(Plane const&) const = default;
 
-			// point p is on the plane if dot(p, n) - d = 0
+			static Float32 thickness;
 		};
 		inline Plane MakePlane(Vec3 const& normal, Vec3 const& point);
 		inline Plane MakePlane(Vec3 const& p0, Vec3 const& p1, Vec3 const& p2); // assumes points are ordered counter-clockwise
-		inline Float32 SignedDistance(Vec3 const& point, Plane const& plane);
-		inline Plane GetTransformed(Plane const& plane, Mat4 const& transform);
+		inline Plane Transformed(Plane const& plane, Mat4 const& transform);
 
+
+		struct Polygon
+		{
+			// oriented counterclockwise
+			std::vector<Vec3> verts;
+		};
+		void SplitPolygon(Polygon const& poly, Plane const& plane, Polygon& frontPoly, Polygon& backPoly);
 
 
 		struct Segment
@@ -32,6 +38,7 @@ namespace drb {
 			Vec3 b = Vec3(0),     // begin point
 				 e = Vec3(1,0,0); // end point
 		};
+		inline Segment Transformed(Segment const& seg, Mat4 const& transform);
 
 
 
@@ -47,33 +54,11 @@ namespace drb {
 				Bool	hit      = false;
 			};
 		};
-		inline Ray::CastResult RayCast(Ray const& r, AABB const& aabb);
-
-
-		//void SplitPolygonSH(Polygon& poly, Plane plane, Polygon** frontPoly, Polygon** backPoly);
-
 
 
 		// ---------------------------------------------------------------------
 		// IDENTIFIERS
 		// ---------------------------------------------------------------------
-		
-		// Used to identify which face, edge, or vertex of colliding objects are
-		// in contact. This is really only relevant for Convex and Mesh. For
-		// Sphere and Capsule, we just always use 0 as the FeatureID.
-		struct Feature
-		{
-			enum class Type : unsigned {
-				Face = 0,
-				Edge = 1,
-				Vert = 2
-			};
-
-			unsigned index = 0;
-			Type     type = Type::Face;
-		};
-
-
 
 		enum class ColliderType
 		{
@@ -108,42 +93,46 @@ namespace drb {
 			static constexpr auto type = ColliderType::Capsule;
 		};
 		inline Mat3 ComputeInertiaTensor(Capsule const& cap);
-		inline Segment GetCentralSegment(Capsule const& cap, Mat4 const& tr);
+		inline Segment CentralSegment(Capsule const& cap, Mat4 const& tr);
 		inline AABB MakeAABB(Capsule const& cap, Mat4 const& tr);
 
 
-		
-		struct Convex // assume origin in local space is at centroid
+		// assume...
+		// - centroid is at the origin in local space
+		// - closed and convex (i.e. this is a polyhedron)
+		// - no coplanar faces
+		struct Convex 
 		{
 			struct HalfEdge {
-				Uint8 next = 0;
-				Uint8 twin = 0;
-				Uint8 origin = 0;
-				Uint8 face = 0;
+				Uint8 next = MAX_EDGES;
+				Uint8 twin = MAX_EDGES;
+				Uint8 origin = MAX_EDGES;
+				Uint8 face = MAX_EDGES;
 
 				constexpr bool operator==(HalfEdge const&) const = default;
 			};
 
 			struct Face {
-				Uint8 edge = 0;
+				Uint8 edge = MAX_EDGES;
 				Plane plane = {};
 
 				constexpr bool operator==(Face const&) const = default;
 			};
 
-			AABB					 bounds{}; // AABB in local space -- used to quickly recompute AABB/OBB in world space
-			std::vector<Vec3>		 verts{};  // in local space
-			std::vector<HalfEdge>	 edges{};  // stored s.t. each edge is adjacent to its twin
+			AABB					 bounds{};   // AABB in local space -- used to quickly recompute AABB/OBB in world space
+			std::vector<Vec3>		 verts{};    // in local space
+			std::vector<HalfEdge>	 edges{};    // stored s.t. each edge is adjacent to its twin
 			std::vector<Face>		 faces{};
 
 			static constexpr auto MAX_EDGES = std::numeric_limits<Uint8>::max();
 			static constexpr auto type = ColliderType::Convex;
 		};
-		inline Convex MakeBox(Vec3 const& halfwidths);
-		inline Convex MakeTetrahedron(Vec3 const& p0, Vec3 const& p1, Vec3 const& p2, Vec3 const& p3);
-		inline Mat3   ComputeInertiaTensor(Convex const& hull);
-		inline AABB   MakeAABB(Convex const& hull, Mat4 const& tr);
-
+		inline Convex  MakeBox(Vec3 const& halfwidths);
+		inline Convex  MakeTetrahedron(Vec3 const& p0, Vec3 const& p1, Vec3 const& p2, Vec3 const& p3); // note that this will shift the points s.t. the centroid is at (0,0,0)
+		inline Mat3    ComputeInertiaTensor(Convex const& hull);
+		inline void    ForEachOneRingNeighbor(Convex const& hull, Convex::HalfEdge const& start, std::invocable<Convex::HalfEdge> auto fn);
+		inline AABB    MakeAABB(Convex const& hull, Mat4 const& tr);
+		inline Polygon FaceAsPolygon(Convex const& hull, Mat4 const& tr, Convex::Face const& face);
 
 
 		struct Mesh
@@ -163,13 +152,51 @@ namespace drb {
 			std::same_as<T, Mesh>;
 
 
+		struct CollisionShapeBase {
+			Mat4         transform = Mat4(1);
+			Float32      mass = 1.0f;
+			ColliderType type = ColliderType::NONE;
+		};
+
 
 		template<Shape ShapeType>
-		struct CollisionShape
+		struct CollisionShape final : public CollisionShapeBase
 		{
-			ShapeType shape{};
-			Mat4      transform = Mat4(1);
-			Float32   mass = 1.0f;
+			CollisionShape(ShapeType const& shape, Mat4 const& transform, Float32 mass = 1.0f);
+			ShapeType shape;
+		};
+
+		struct CollisionGeometry final
+		{
+			std::vector<CollisionShape<Sphere>>  spheres    = {};
+			std::vector<CollisionShape<Capsule>> capsules   = {};
+			std::vector<CollisionShape<Convex>>  hulls      = {};
+			Mat3								 invInertia = Mat3(1);
+			Float32                              invMass    = 1.0f;
+			Vec3								 com        = {};
+
+			// -----------------------------------------------------------------
+			// Setup Methods
+			// -----------------------------------------------------------------
+
+			// must be called by user after all colliders have been added. computes 
+			// the mass, center of mass, and local inertia tensor. This will also
+			// set the local position of each collider such that the center of 
+			// mass of the body is at the origin, but saves the coords of the COM
+			// in the original model space.
+			void Bake();
+
+			template<Shape T>
+			CollisionGeometry& AddCollider(T&& shape, CollisionShapeBase&& options = {});
+
+			template<Shape T>
+			CollisionGeometry& AddCollider(T const& shape, CollisionShapeBase const& options = {});
+
+			template<class Fn>
+			void ForEachCollider(Fn fn);
+
+			template<class Fn>
+			void ForEachCollider(Fn fn) const;
 		};
 	}
 }

@@ -32,43 +32,70 @@ namespace drb {
 		glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 
 		// Build physics World
+		mDummy.SetCollisionGeometry(std::make_shared<CollisionGeometry const>());
+
+		auto geomA = std::make_shared<physics::CollisionGeometry>();
+		geomA->AddCollider(
+				Sphere{ .r = 2.0f },
+				{
+						.mass = 10.0f
+				})
+			.Bake();
+		
+		auto geomB = std::make_shared<physics::CollisionGeometry>();
+		geomB->AddCollider(
+				Capsule{ .r = 0.5f, .h = 2.0f },
+				{
+					.mass = 20.0f
+				})
+			.Bake();
+
+		auto geomC = std::make_shared<physics::CollisionGeometry>();
+		geomC->AddCollider(
+				MakeTetrahedron(Vec3(0, 2, 0), Vec3(1, 0, 0), Vec3(0, 0, 1), Vec3(-1, 0, 0)),
+				{
+					.transform = glm::translate(Mat4(1), Vec3(0.0f, -2.0f, 0.0f)),
+					.mass = 20.0f
+				})
+			.AddCollider(
+				Capsule{ .r = 1.0f, .h = 0.5f },
+				{
+					.transform = glm::rotate(Mat4(1), 3.14f * 0.5f, Vec3(0.0f, 0.0f, 1.0f)),
+					.mass = 100.0f
+				})
+			.Bake();
+
+
 		mWorld.CreateRigidBody()
 			.SetPosition(Vec3(0, 5, 0))
 			.SetGravityScale(0.2f)
-			.AddCollider<Sphere>({
-					.shape = {.r = 2.0f },
-					.mass = 10.0f
-				})
-			.FinalizeCollisionGeometry();
+			.SetCollisionGeometry(geomA);
 
-		mSelected = &mWorld.CreateRigidBody()
+		mWorld.CreateRigidBody()
 			.SetPosition(Vec3(5, 0, 0))
 			.SetGravityScale(0.0f)
-			.AddCollider(CollisionShape<Capsule>{
-			.shape = { .r = 0.5f, .h = 2.0f },
-				.mass = 20.0f
-			});
-		mSelected->FinalizeCollisionGeometry();
+			.SetCollisionGeometry(geomB);
+			
 		
 		mWorld.CreateRigidBody()
 			.SetType(physics::RigidBody::Type::Kinematic)
 			.SetPosition(Vec3(-5, 0, 0))
-			.AddCollider<Convex>({
-					.shape = MakeTetrahedron(Vec3(0, 2, 0), Vec3(1,0,0), Vec3(0,0,1), Vec3(-1,0,0)),
-					.transform = glm::translate(Mat4(1), Vec3(0.0f, -2.0f, 0.0f)),
-					.mass = 20.0f
-				})
-			.AddCollider(CollisionShape<Capsule>{
-				.shape = { .r = 1.0f, .h = 0.5f },
-				.transform = glm::rotate(Mat4(1), 3.14f * 0.5f, Vec3(0.0f, 0.0f, 1.0f)),
-				.mass = 100.0f
-			})
-			.FinalizeCollisionGeometry();
+			.SetCollisionGeometry(geomC);
+		
+		
+		mWorld.CreateRigidBody()
+			.SetType(physics::RigidBody::Type::Kinematic)
+			.SetPosition(Vec3(-10, 0, 0))
+			.SetCollisionGeometry(geomB);
+			
 
-		mWorld.AddStaticCollider<physics::Convex>({
-				.shape = MakeBox(Vec3(1.0f, 2.0f, 3.0f)),
+		mWorld.AddStaticCollider(
+			MakeBox(Vec3(1.0f, 2.0f, 3.0f)),
+			{
 				.transform = glm::translate(Mat4(1), Vec3(0,0,2))
 			});
+			
+				
 
 		
 		// Sync Renderer and Recorder with World

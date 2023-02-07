@@ -34,11 +34,11 @@ namespace drb {
 			world = &world_;
 			for (auto&& rb : world->bodies) 
 			{
-				for (auto&& cvx : rb.hulls) {
+				for (auto&& cvx : rb.geometry->hulls) {
 					meshes.emplace(&cvx.shape, std::move(MakeRenderMesh(cvx.shape)));
 				}
 			}
-			for (auto&& cvx : world->cvxColliders)
+			for (auto&& cvx : world->colliders.hulls)
 			{
 				meshes.emplace(&cvx.shape, std::move(MakeRenderMesh(cvx.shape)));
 			}
@@ -122,7 +122,7 @@ namespace drb {
 			AABB b{};
 
 
-			for (auto&& s : rb.spheres) {
+			for (auto&& s : rb.geometry->spheres) {
 				modelTr = rbTr * s.transform;
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
 				modelTr = SphereTransform(s.shape, modelTr);
@@ -134,7 +134,7 @@ namespace drb {
 				EnableWireframeMode(false);
 			}
 
-			for (auto&& c : rb.capsules) {
+			for (auto&& c : rb.geometry->capsules) {
 				modelTr = rbTr * c.transform;
 				DrawCapsule(c.shape, shader, modelTr, ci);
 
@@ -144,7 +144,7 @@ namespace drb {
 				EnableWireframeMode(false);
 			}
 
-			for (auto&& h : rb.hulls) {
+			for (auto&& h : rb.geometry->hulls) {
 				modelTr = rbTr * h.transform;
 				drb::Mesh::ScopedUse use{ meshes.at(&h.shape) };
 				DrawMesh(use.mesh, shader, modelTr, ci);
@@ -168,19 +168,19 @@ namespace drb {
 			Mat4 modelTr{};
 			Mat4 const scale = glm::scale(Mat4(1), Vec3(1.03f));
 
-			for (auto&& s : rb.spheres) {
+			for (auto&& s : rb.geometry->spheres) {
 				modelTr = rbTr * s.transform * scale;
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
 				modelTr = SphereTransform(s.shape, modelTr);
 				DrawMesh(use.mesh, shader, modelTr, ci);
 			}
 
-			for (auto&& c : rb.capsules) {
+			for (auto&& c : rb.geometry->capsules) {
 				modelTr = rbTr * c.transform * scale;
 				DrawCapsule(c.shape, shader, modelTr, ci);
 			}
 
-			for (auto&& h : rb.hulls) {
+			for (auto&& h : rb.geometry->hulls) {
 				modelTr = rbTr * h.transform * scale;
 				drb::Mesh::ScopedUse use{ meshes.at(&h.shape) };
 				DrawMesh(use.mesh, shader, modelTr, ci);
@@ -198,17 +198,17 @@ namespace drb {
 					.opacity = 0.7f
 			};
 
-			for (auto&& s : world->sphColliders) {
+			for (auto&& s : world->colliders.spheres) {
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
 				Mat4 const modelTr = SphereTransform(s.shape, s.transform);
 				DrawMesh(use.mesh, shader, modelTr, staticColor);
 			}
 			
-			for (auto&& c : world->capColliders) {
+			for (auto&& c : world->colliders.capsules) {
 				DrawCapsule(c.shape, shader, c.transform, staticColor);
 			}
 			
-			for (auto&& h : world->cvxColliders) {
+			for (auto&& h : world->colliders.hulls) {
 				drb::Mesh::ScopedUse use{ meshes.at(&h.shape) };
 				DrawMesh(use.mesh, shader, h.transform, staticColor);
 			}
@@ -379,7 +379,7 @@ namespace drb {
 
 			// Draw spheres
 			{
-				Segment segment{ GetCentralSegment(cap, tr) };
+				Segment segment{ CentralSegment(cap, tr) };
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
 
 				// Draw bottom sphere

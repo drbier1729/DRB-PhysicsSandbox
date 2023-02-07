@@ -22,15 +22,6 @@
     <Filter Include="Header Files\Physics">
       <UniqueIdentifier>{ed0c6bd9-2913-4b27-8393-7f43a165974d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Physics\CollisionRes">
-      <UniqueIdentifier>{a866a00e-5f4f-45a2-aeab-9b78bff9a6cc}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Physics\BroadPhaseCollision">
-      <UniqueIdentifier>{f6ecb756-46fd-4d52-b0ad-faad64c7ceb0}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Physics\CollisionGeom">
-      <UniqueIdentifier>{cf8da53f-ecde-498b-bcd0-bb0dd3fb4113}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\Physics\RigidbodyDynamics">
       <UniqueIdentifier>{777eea5b-be07-49f8-8fb8-8e6c49901184}</UniqueIdentifier>
     </Filter>
@@ -40,20 +31,17 @@
     <Filter Include="Source Files\Physics\RigidbodyDynamics">
       <UniqueIdentifier>{838e6e42-ba95-4168-809d-5d0cf91b9ad0}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Physics\BroadPhaseCollision">
-      <UniqueIdentifier>{6127d43b-49ef-44f9-aaf7-9e7cc1940396}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Physics\CollisionGeom">
-      <UniqueIdentifier>{8641ca2f-8e4f-42a6-9ff5-306c5beb3f4c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Physics\CollisionRes">
-      <UniqueIdentifier>{3f9629ba-5a6e-4a77-83d7-6d7b6269ee86}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\Physics\Debug">
       <UniqueIdentifier>{392286d7-1cfc-4d95-a645-bfc4bc4ffbf6}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\Physics\Debug">
       <UniqueIdentifier>{b090916f-cc5a-43db-bb44-b5601f0d2ff7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Physics\Collision">
+      <UniqueIdentifier>{f6ecb756-46fd-4d52-b0ad-faad64c7ceb0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Physics\Collision">
+      <UniqueIdentifier>{6127d43b-49ef-44f9-aaf7-9e7cc1940396}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -81,14 +69,8 @@
     <ClCompile Include="RigidBody.cpp">
       <Filter>Source Files\Physics\RigidbodyDynamics</Filter>
     </ClCompile>
-    <ClCompile Include="PhysicsGeometryQueries.cpp">
-      <Filter>Source Files\Physics\CollisionGeom</Filter>
-    </ClCompile>
-    <ClCompile Include="PhysicsGeometry.cpp">
-      <Filter>Source Files\Physics\CollisionGeom</Filter>
-    </ClCompile>
     <ClCompile Include="AABB.cpp">
-      <Filter>Source Files\Physics\BroadPhaseCollision</Filter>
+      <Filter>Source Files\Physics\Collision</Filter>
     </ClCompile>
     <ClCompile Include="PhysicsDebugDrawing.cpp">
       <Filter>Source Files\Physics\Debug</Filter>
@@ -116,6 +98,15 @@
     </ClCompile>
     <ClCompile Include="SceneInspector.cpp">
       <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="PhysicsGeometry.cpp">
+      <Filter>Source Files\Physics\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="PhysicsGeometryQueries.cpp">
+      <Filter>Source Files\Physics\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="SATGJK.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -146,14 +137,8 @@
     <ClInclude Include="TypeDefs.h">
       <Filter>Header Files\Engine</Filter>
     </ClInclude>
-    <ClInclude Include="PhysicsGeometry.h">
-      <Filter>Header Files\Physics\CollisionGeom</Filter>
-    </ClInclude>
-    <ClInclude Include="PhysicsGeometryQueries.h">
-      <Filter>Header Files\Physics\CollisionGeom</Filter>
-    </ClInclude>
     <ClInclude Include="AABB.h">
-      <Filter>Header Files\Physics\BroadPhaseCollision</Filter>
+      <Filter>Header Files\Physics\Collision</Filter>
     </ClInclude>
     <ClInclude Include="Math.h">
       <Filter>Header Files\Engine</Filter>
@@ -182,16 +167,22 @@
     <ClInclude Include="SceneInspector.h">
       <Filter>Header Files\Engine</Filter>
     </ClInclude>
+    <ClInclude Include="PhysicsGeometry.h">
+      <Filter>Header Files\Physics\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="PhysicsGeometryQueries.h">
+      <Filter>Header Files\Physics\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="SATGJK.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="RigidBody.inl">
       <Filter>Header Files\Physics\RigidbodyDynamics</Filter>
     </None>
-    <None Include="PhysicsGeometry.inl">
-      <Filter>Header Files\Physics\CollisionGeom</Filter>
-    </None>
     <None Include="AABB.inl">
-      <Filter>Header Files\Physics\BroadPhaseCollision</Filter>
+      <Filter>Header Files\Physics\Collision</Filter>
     </None>
     <None Include="Camera.inl">
       <Filter>Header Files\Engine</Filter>
@@ -210,6 +201,15 @@
     </None>
     <None Include="WorldStateRecorder.inl">
       <Filter>Header Files\Physics\Debug</Filter>
+    </None>
+    <None Include="PhysicsGeometry.inl">
+      <Filter>Header Files\Physics\Collision</Filter>
+    </None>
+    <None Include="PhysicsGeometryQueries.inl">
+      <Filter>Header Files\Physics\Collision</Filter>
+    </None>
+    <None Include="SATGJK.inl">
+      <Filter>Header Files</Filter>
     </None>
   </ItemGroup>
 </Project>

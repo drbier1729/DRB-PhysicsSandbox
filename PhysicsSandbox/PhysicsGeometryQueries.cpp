@@ -2,44 +2,57 @@
 #include "PhysicsGeometryQueries.h"
 
 #include "PhysicsGeometry.h"
+#include "SATGJK.h"
 
 #define COLLIDE_FCN_NOT_IMPLEMENTED ASSERT(false, "Not yet implemented."); return ContactManifold{};
 
 namespace drb {
 	namespace physics {
+
 		namespace util {
-			struct FaceQuery {
-				Int32   index = -1;
-				Float32 separation = std::numeric_limits<Float32>::lowest();
-				Vec3    normal = Vec3(NAN);
-			};
 
-			struct EdgeQuery {
-				Int32   indexA = -1;
-				Int32   indexB = -1;
-				Float32 separation = std::numeric_limits<Float32>::lowest();
-				Vec3	normal = Vec3(NAN);
-			};
-
+			// -----------------------------------------------------------------
+			// HELPERS
+			// -----------------------------------------------------------------
+			
 			struct ClosestPointsQuery {
 				Vec3 ptA = Vec3(NAN);							  // pt on shape a in world space
 				Vec3 ptB = Vec3(NAN);							  // pt on shape b in world space
 				Float32 d2 = std::numeric_limits<Float32>::max(); // sqr distance
 			};
 
-			static FaceQuery SATQueryFaceDirections(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
-			static EdgeQuery SATQueryEdgeDirections(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
-			
-			static inline Vec3 GetSupport(Convex const& hull, Vec3 const& dir);
-			static inline Float32 Project(const Plane& plane, const Convex& hull);
-			static inline Float32 Project(const Vec3& p1, const Vec3& e1, const Vec3& p2, const Vec3& e2, const Vec3& c1, Vec3& out_normal);
-			
-			static inline Bool IsMinkowskiFace(Vec3 const& a, Vec3 const& b, Vec3 const& b_x_a, Vec3 const& c, Vec3 const& d, Vec3 const& d_x_c);
-		
-			static inline Vec3 ClosestPoint(Vec3 const& pt, Segment const& ls);
-			static ClosestPointsQuery ClosestPoints(Segment const& A, Segment const& B);
+			// Returns closest point (in world space) on segment ls to point pt
+			static inline Vec3               ClosestPoint(Vec3 const& pt, Segment const& ls);
 
-			static inline ContactManifold CollideFlipped(auto const& A, Mat4 const& trA, auto const& B, Mat4 const& trB);
+			// Returns closest points (in world space) on each segment to the other segment, and the
+			// square distance between them
+			static        ClosestPointsQuery ClosestPoints(Segment const& A, Segment const& B);
+
+			// Helper to swap the arguments A and B and call the appropriate collision function
+			static inline ContactManifold    CollideFlipped(auto const& A, Mat4 const& trA, auto const& B, Mat4 const& trB);
+
+			// Helper to handle when normal is oriented the wrong way for a manifold
+			static inline void               Flip(ContactManifold& manifold);
+
+			// Helper to create the contact manifold for face collisions found during SAT 
+			static		  ContactManifold	 GenerateFaceContact(FaceQuery const& fq, Convex const& reference, Convex const& incident, Mat4 const& incToRef);
+		}
+
+
+		// ---------------------------------------------------------------------
+		// MANIFOLD
+		// ---------------------------------------------------------------------
+
+		ManifoldKey::ManifoldKey(RigidBody* a_, CollisionShapeBase* aShape_, RigidBody* b_, CollisionShapeBase* bShape_)
+			: a{ a_ }, aShape{ aShape_ }, b{ b_ }, bShape{ bShape_ }
+		{
+			ASSERT(a != b, "RigidBodies a and b must be unique.");
+
+			if (a > b)
+			{
+				std::swap(a, b);
+				std::swap(aShape, bShape);
+			}
 		}
 
 
@@ -74,26 +87,33 @@ namespace drb {
 			return result;
 		}
 
+
 		ContactManifold Collide(Sphere const& A, Mat4 const& trA, Capsule const& B, Mat4 const& trB)
 		{
 			Vec3 const posA = trA[3];
-			Segment const segB = GetCentralSegment(B, trB);
+			Segment const segB = CentralSegment(B, trB);
 
 			// Closest point to a on internal line segment of b
 			Vec3 const p = util::ClosestPoint(posA, segB);
 
-			// Construct a sphere on the fly centered at the closest point on
-			// central segment to sphere A and with radius of capsule B
+			// Construct a sphere on the fly, centered at the closest point to sphere A 
+			// on central segment of capsule B with radius of capsule B
 			Sphere const S{ B.r };
 			Mat4 const trS = glm::translate(Mat4(1), p);
 
 			return Collide(A, trA, S, trS);
 		}
 
+
 		ContactManifold Collide(Sphere const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
 		{
-			COLLIDE_FCN_NOT_IMPLEMENTED	
+			COLLIDE_FCN_NOT_IMPLEMENTED
+
+			// Use GJK between A's center and B
+			// -> if (center and B are not intersecting): generate contact if distance < A's radius
+			// -> else: use SAT to generate contact
 		}
+
 
 		ContactManifold Collide(Sphere const& A, Mat4 const& trA, Mesh const& B, Mat4 const& trB) 
 		{
@@ -107,8 +127,8 @@ namespace drb {
 
 		ContactManifold Collide(Capsule const& A, Mat4 const& trA, Capsule const& B, Mat4 const& trB)
 		{
-			Segment const segA = GetCentralSegment(A, trA);
-			Segment const segB = GetCentralSegment(B, trB);
+			Segment const segA = CentralSegment(A, trA);
+			Segment const segB = CentralSegment(B, trB);
 
 			auto const [pA, pB, d2] = util::ClosestPoints(segA, segB);
 			
@@ -126,10 +146,12 @@ namespace drb {
 			return Collide(sA, trSA, sB, trSB);
 		}
 
+
 		ContactManifold Collide(Capsule const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
 		{
 			COLLIDE_FCN_NOT_IMPLEMENTED
 		}
+
 
 		ContactManifold Collide(Capsule const& A, Mat4 const& trA, Mesh const& B, Mat4 const& trB)
 		{
@@ -145,49 +167,88 @@ namespace drb {
 		{
 			// Test faces of A
 			util::FaceQuery fqA = util::SATQueryFaceDirections(A, trA, B, trB);
-			if (fqA.separation > 0.0f) {
+			if (fqA.separation > 0.0f) 
+			{
 				return ContactManifold{
+					
 					.normal = fqA.normal
+				
 				}; // no contacts, but track the separating normal
 			}
 
 			// Test faces of B
 			util::FaceQuery fqB = util::SATQueryFaceDirections(B, trB, A, trA);
-			fqB.normal *= -1.0f; // normal currently points from B toward A, so flip it
-			if (fqB.separation > 0.0f) {
+			if (fqB.separation > 0.0f) 
+			{
 				return ContactManifold{
-					.normal = fqB.normal
+					
+					.normal = -1.0f * fqB.normal  // normal was pointing from B -> A, so flip it
+
 				}; // no contacts, but track the separating normal
 			}
 
 			// Test edge pairs
 			util::EdgeQuery eq = util::SATQueryEdgeDirections(A, trA, B, trB);
-			if (eq.separation > 0.0f) {
+			if (eq.separation > 0.0f) 
+			{
 				return ContactManifold{
+
 					.normal = eq.normal
+				
 				}; // no contacts, but track the separating normal
 			}
 
 			// Now generate the contact manifold!
-			ContactManifold result{ .numContacts = 1 };
+			ContactManifold result{ };
 
-			Vec3 normal = fqA.normal;
-			Float32 sep = glm::max(fqB.separation, glm::max(fqB.separation, eq.separation));
-			if (sep == fqB.separation) {
-				normal = fqB.normal;
-			}
-			else if (sep == eq.separation) {
-				normal = eq.normal;
-			}
-			result.normal = normal;
+			// This is a value used to make Face A preferable to Face B, and both faces
+			// preferable to an Edge Pair when deciding what contact to generate.
+			static constexpr Float32 bias = 0.98f;
 
-			// TODO finish generating contacts
-			// ...
-			COLLIDE_FCN_NOT_IMPLEMENTED
+			Bool const faceContactA = fqA.separation * bias > eq.separation;
+			Bool const faceContactB = fqB.separation * bias > eq.separation;
+
+			if (faceContactA && faceContactB)
+			{
+				if (fqA.separation * bias > fqB.separation)
+				{
+					Mat4 const BtoA = glm::inverse(trA) * trB;
+					result = util::GenerateFaceContact(fqA, A, B, BtoA);
+				}
+				else
+				{
+					Mat4 const AtoB = glm::inverse(trB) * trA;
+					result = util::GenerateFaceContact(fqB, B, A, AtoB);
+					util::Flip(result);
+				}
+			}
+			else // Create Edge-Edge Contact
+			{
+				// First find closest points on the two witness edges
+				Convex::HalfEdge const edgeA = A.edges[eq.indexA];
+				Convex::HalfEdge const twinA = A.edges[edgeA.twin];
+				Segment const edgeSegA = Transformed({ .b = A.verts[edgeA.origin], .e = A.verts[twinA.origin] }, trA);
+				
+				Convex::HalfEdge const edgeB = B.edges[eq.indexB];
+				Convex::HalfEdge const twinB = B.edges[edgeB.twin];
+				Segment const edgeSegB = Transformed({ .b = B.verts[edgeB.origin], .e = B.verts[twinB.origin] }, trB);
+
+				util::ClosestPointsQuery closestPts = util::ClosestPoints(edgeSegA, edgeSegB);
+
+				// Then build the contact with position at midpoint between closest points
+				result.contacts[result.numContacts++] = Contact{
+					.featureA = {.index = eq.indexA, .type = Feature::Type::Edge },
+					.featureB = {.index = eq.indexB, .type = Feature::Type::Edge },
+					.position = 0.5f * (closestPts.ptA + closestPts.ptB),
+					.penetration = -eq.separation
+				};
+				result.normal = eq.normal;
+			}
 
 			return result;
 		}
 		
+
 		ContactManifold Collide(Convex const& A, Mat4 const& trA, Mesh const& B, Mat4 const& trB)
 		{
 			COLLIDE_FCN_NOT_IMPLEMENTED
@@ -203,6 +264,7 @@ namespace drb {
 			ASSERT(false, "Intentionally not implemented b/c Mesh colliders are required to be static.");
 			return ContactManifold{};
 		}
+
 
 		// ---------------------------------------------------------------------
 		// FLIPPED ARGS
@@ -240,164 +302,12 @@ namespace drb {
 
 
 		// ---------------------------------------------------------------------
-		// HELPER IMPLEMENTATIONS
+		// Helper Implementations
 		// ---------------------------------------------------------------------
 
 		namespace util {
 
-			static FaceQuery SATQueryFaceDirections(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
-			{
-				// We perform all computations in local space of B
-				Mat4 const transform = glm::inverse(trB) * trA;
-
-				FaceQuery result{};
-
-				Int32 const face_count = static_cast<Int32>(A.faces.size());
-				for (Int32 i = 0; i < face_count; ++i)
-				{
-					Plane const p = GetTransformed(A.faces[i].plane, transform);
-
-					Float32 const separation = Project(p, B);
-					if (separation > result.separation)
-					{
-						result.index = i;
-						result.separation = separation;
-						result.normal = Mat3(trB) * p.n; // transform normal back into world space, pointing from A toward B
-					}
-				}
-				return result;
-			}
-
-
-			static EdgeQuery SATQueryEdgeDirections(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
-			{
-				// We perform all computations in local space of B
-				Mat4 const transform = glm::inverse(trB) * trA;
-
-				// Get the centroid of A in the local space of B
-				Vec3 const cA = transform[3];
-
-				// Find axis of minimum penetration
-				EdgeQuery result{};
-
-				Int32 const edgeCountA = static_cast<Int32>(A.edges.size());
-				Int32 const edgeCountB = static_cast<Int32>(B.edges.size());
-
-				for (Int32 i = 0; i < edgeCountA; i += 2)
-				{
-					Convex::HalfEdge const& edgeA = A.edges[i];
-					Convex::HalfEdge const& twinA = A.edges[i + 1];
-					ASSERT(edgeA.twin == i + 1 && twinA.twin == i, "A is invalid.");
-
-					Vec3 const pA = transform * Vec4(A.verts[edgeA.origin], 1);
-					Vec3 const qA = transform * Vec4(A.verts[twinA.origin], 1);
-					Vec3 const eA = qA - pA;
-
-					Vec3 const uA = Mat3(transform) * A.faces[edgeA.face].plane.n;
-					Vec3 const vA = Mat3(transform) * A.faces[twinA.face].plane.n;
-
-					for (Int32 j = 0; j < edgeCountB; j += 2)
-					{
-						Convex::HalfEdge const& edgeB = B.edges[j];
-						Convex::HalfEdge const& twinB = B.edges[j + 1];
-						ASSERT(edgeB.twin == j + 1 && twinB.twin == j, "B is invalid.");
-
-						Vec3 const pB = B.verts[edgeB.origin];
-						Vec3 const qB = B.verts[twinB.origin];
-						Vec3 const eB = qB - pB;
-
-						Vec3 const uB = B.faces[edgeB.face].plane.n;
-						Vec3 const vB = B.faces[twinB.face].plane.n;
-
-						if (IsMinkowskiFace(uA, vA, -eA, -uB, -vB, -eB))
-						{
-							Vec3 normal{};
-							Float32 const separation = Project(pA, eA, pB, eB, cA, normal);
-							if (separation > result.separation)
-							{
-								result.indexA = i;
-								result.indexB = j;
-								result.separation = separation;
-								result.normal = Mat3(trB) * normal; // transform back into world space
-							}
-						}
-					}
-				}
-
-				return result;
-			}
-
-			// dir should be in hull's local space
-			static inline Vec3 GetSupport(Convex const& hull, Vec3 const& dir) {
-				Int32   max_index = -1;
-				Float32 max_projection = std::numeric_limits<Float32>::lowest();
-
-				Int32 const vert_count = static_cast<Int32>(hull.verts.size());
-
-				for (Int32 i = 0; i < vert_count; ++i)
-				{
-					Float32 const projection = glm::dot(dir, hull.verts[i]);
-					if (projection > max_projection)
-					{
-						max_index = i;
-						max_projection = projection;
-					}
-				}
-
-				return hull.verts[max_index];
-			}
-			
-			// This function computes the distance between a plane and the hull assuming the plane
-			// is in the local space of the hull
-			static inline Float32 Project(Plane const& plane, Convex const& hull)
-			{
-				Vec3 const support = GetSupport(hull, -plane.n);
-				return SignedDistance(support, plane);
-			}
-			
-			// This function is used only within SATQueryEdgeDirections
-			static inline Float32 Project(Vec3 const& p1, Vec3 const& e1, 
-				Vec3 const& p2, Vec3 const& e2, 
-				Vec3 const& c1, 
-				Vec3& outNormal)
-			{
-				// Build search direction
-				Vec3 const e1_x_e2 = glm::cross(e1, e2);
-
-				// Skip near parallel edges: |e1 x e2| = sin(alpha) * |e1| * |e2|
-				static constexpr Float32 k_tolerance = 0.005f;
-				Float32 const L = glm::length(e1_x_e2);
-				if (L < k_tolerance * std::sqrt(glm::length2(e1) * glm::length2(e2))) {
-					outNormal = Vec3(NAN);
-					return std::numeric_limits<Float32>::lowest();
-				}
-
-				// Ensure consistent normal orientation (A -> B)
-				outNormal = e1_x_e2 / L;
-				if (glm::dot(outNormal, p1 - c1) < 0.0f) {
-					outNormal *= -1.0f;
-				}
-
-				// s = Dot(n, p2) - d = Dot(n, p2) - Dot(n, p1) = Dot(n, p2 - p1) 
-				return glm::dot(outNormal, p2 - p1);
-			}
-
-			// This function is used only within SATQueryEdgeDirections
-			static inline Bool IsMinkowskiFace(Vec3 const& a, Vec3 const& b,
-				Vec3 const& b_x_a,
-				Vec3 const& c, Vec3 const& d,
-				Vec3 const& d_x_c)
-			{
-				// Test if arcs AB and CD intersect on the unit sphere 
-				Float32 const CBA = glm::dot(c, b_x_a);
-				Float32 const DBA = glm::dot(d, b_x_a);
-				Float32 const ADC = glm::dot(a, d_x_c);
-				Float32 const BDC = glm::dot(b, d_x_c);
-
-				return CBA * DBA < 0.0f && ADC * BDC < 0.0f && CBA * BDC > 0.0f;
-			}
-
-			static Vec3 ClosestPoint(Vec3 const& pt, Segment const& ls) {
+			static inline Vec3 ClosestPoint(Vec3 const& pt, Segment const& ls) {
 				Vec3 const s = ls.e - ls.b;
 				ASSERT(glm::length2(s) > 0.0001f, "Line segment is poorly defined. Start == End.");
 
@@ -411,8 +321,9 @@ namespace drb {
 				return ls.b + t * s;
 			}
 
+
 			// See Ericson Realtime Collision Detection Ch 5.1.9
-			static ClosestPointsQuery ClosestPoints(Segment const& A, Segment const& B) 
+			static ClosestPointsQuery ClosestPoints(Segment const& A, Segment const& B)
 			{
 				Vec3 const dA = A.e - A.b; // Direction vector of segment a
 				Vec3 const dB = B.e - B.b; // Direction vector of segment b
@@ -448,8 +359,8 @@ namespace drb {
 						if (denom != 0.0f) {
 							s = glm::clamp((d * f - c * LB) / denom, 0.0f, 1.0f);
 						}
-						else { 
-							s = 0.0f; 
+						else {
+							s = 0.0f;
 						}
 
 						t = (d * s + f) / LB;
@@ -467,24 +378,67 @@ namespace drb {
 				Vec3 const c1 = A.b + dA * s;
 				Vec3 const c2 = B.b + dB * t;
 
-				return ClosestPointsQuery{ 
-					.ptA = c1, 
-					.ptB = c2, 
-					.d2 = glm::distance2(c1, c2) 
+				return ClosestPointsQuery{
+					.ptA = c1,
+					.ptB = c2,
+					.d2 = glm::distance2(c1, c2)
 				};
+			}
+
+
+			static inline void Flip(ContactManifold& m)
+			{
+				m.normal *= -1.0f;
+				for (Uint32 i = 0; i < m.numContacts; ++i) {
+					std::swap(m.contacts[i].featureA, m.contacts[i].featureB);
+				}
 			}
 
 
 			static inline ContactManifold CollideFlipped(auto const& A, Mat4 const& trA, auto const& B, Mat4 const& trB)
 			{
 				ContactManifold m = Collide(B, trB, A, trA);
-				m.normal *= -1.0f;
-				for (unsigned i = 0; i < m.numContacts; ++i) {
-					std::swap(m.contacts[i].featureA, m.contacts[i].featureB);
-				}
+				Flip(m);
 				return m;
 			}
 
+
+
+			static ContactManifold GenerateFaceContact(FaceQuery const& fq, Convex const& reference, Convex const& incident, Mat4 const& incToRefLocal)
+			{
+				Convex::Face const& refFace = reference.faces[fq.index];
+				
+				// Find the incident face
+				Uint8   incFaceIdx = Convex::MAX_EDGES;
+				Float32 minDotProd = std::numeric_limits<Float32>::max();
+
+				for (Uint8 i = 0; i < incident.faces.size(); ++i)
+				{
+					Vec3 const    n   = Transformed(incident.faces[i].plane, incToRefLocal).n;
+					Float32 const dot = glm::dot(n, refFace.plane.n);
+					if (dot < minDotProd)
+					{
+						minDotProd = dot;
+						incFaceIdx = i;
+					}
+				}
+				Convex::Face const& incFace = incident.faces[incFaceIdx];
+
+				// Clip the incident face
+				Polygon const incFacePoly = FaceAsPolygon(incident, incToRefLocal, incFace);
+				Polygon front{}, back{};
+
+					// For each edge of refFace:
+					// -> generate plane for the edge with normal orthogonal to refFace.plane.n and pointing outward
+					// -> call SplitPolygon(facePoly, edgePlane, front, back);
+					// -> keep points in "back"
+				
+				// Project contact points onto reference face
+				// ...
+
+				// Reduce the clipped and projected incident face to 4 contact points
+				// ...
+			}
 		}
 	}
 }

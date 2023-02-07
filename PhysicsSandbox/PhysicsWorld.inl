@@ -10,31 +10,58 @@ namespace drb {
 		}
 
 		template<Shape T>
-		inline CollisionShape<T>& World::AddStaticCollider(CollisionShape<T> const& shape)
+		CollisionShape<T>& World::AddStaticCollider(T&& shape, CollisionShapeBase&& options)
 		{
-			if constexpr (std::is_same_v<T, Sphere>) 
+			if constexpr (std::is_same_v<T, Sphere>)
 			{
-				ASSERT(sphColliders.size() < sphColliders.capacity(), "Capacity limit reached.");
-				sphColliders.push_back(shape);
-				return sphColliders.back();
+				ASSERT(colliders.spheres.size() < colliders.spheres.capacity(), "Capacity limit reached.");
+				colliders.spheres.emplace_back(std::forward<T>(shape), 
+					std::forward<Mat4>(options.transform), 
+					std::forward<Float32>(options.mass));
+				return colliders.spheres.back();
 			}
-			else if constexpr (std::is_same_v<T, Capsule>) 
+			else if constexpr (std::is_same_v<T, Capsule>)
 			{
-				ASSERT(capColliders.size() < capColliders.capacity(), "Capacity limit reached.");
-				capColliders.push_back(shape);
-				return capColliders.back();
+				ASSERT(colliders.capsules.size() < colliders.capsules.capacity(), "Capacity limit reached.");
+				colliders.capsules.emplace_back(std::forward<T>(shape),
+					std::forward<Mat4>(options.transform),
+					std::forward<Float32>(options.mass));
+				return colliders.capsules.back();
 			}
-			else if constexpr (std::is_same_v<T, Convex>) 
+			else if constexpr (std::is_same_v<T, Convex>)
 			{
-				ASSERT(cvxColliders.size() < cvxColliders.capacity(), "Capacity limit reached.");
-				cvxColliders.push_back(shape);
-				return cvxColliders.back();
+				ASSERT(colliders.hulls.size() < colliders.hulls.capacity(), "Capacity limit reached.");
+				colliders.hulls.emplace_back(std::forward<T>(shape),
+					std::forward<Mat4>(options.transform),
+					std::forward<Float32>(options.mass));
+				return colliders.hulls.back();
 			}
-			else if constexpr(std::is_same_v<T, Mesh>)
+			else
 			{
-				ASSERT(meshColliders.size() < meshColliders.capacity(), "Capacity limit reached.");
-				meshColliders.push_back(shape);
-				return meshColliders.back();
+				static_assert(std::false_type<T>::value, "Invalid shape type.");
+			}
+		}
+
+		template<Shape T>
+		CollisionShape<T>& World::AddStaticCollider(T const& shape, CollisionShapeBase const& options)
+		{
+			if constexpr (std::is_same_v<T, Sphere>)
+			{
+				ASSERT(colliders.spheres.size() < colliders.spheres.capacity(), "Capacity limit reached.");
+				colliders.spheres.emplace_back(shape, options.transform, options.mass);
+				return colliders.spheres.back();
+			}
+			else if constexpr (std::is_same_v<T, Capsule>)
+			{
+				ASSERT(colliders.capsules.size() < colliders.capsules.capacity(), "Capacity limit reached.");
+				colliders.capsules.emplace_back(shape, options.transform, options.mass);
+				return colliders.capsules.back();
+			}
+			else if constexpr (std::is_same_v<T, Convex>)
+			{
+				ASSERT(colliders.hulls.size() < colliders.hulls.capacity(), "Capacity limit reached.");
+				colliders.hulls.emplace_back(shape, options.transform, options.mass);
+				return colliders.hulls.back();
 			}
 			else
 			{
@@ -45,10 +72,9 @@ namespace drb {
 		inline void World::Clear()
 		{
 			bodies.clear();
-			sphColliders.clear();
-			capColliders.clear();
-			cvxColliders.clear();
-			meshColliders.clear();
+			colliders.spheres.clear();
+			colliders.capsules.clear();
+			colliders.hulls.clear();
 		}
 	}
 

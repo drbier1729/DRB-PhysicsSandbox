@@ -5,13 +5,16 @@ namespace drb {
 	namespace physics {
 
 		World::World(Uint32 maxBodies, Uint32 maxColliders, Uint32 targetSubsteps_)
-			: bodies{}, sphColliders{}, capColliders{}, cvxColliders{}, meshColliders{}, targetSubsteps{ targetSubsteps_ }
+			: bodies{}, 
+			worldBody{},
+			colliders{},
+			contacts{},
+			targetSubsteps{ targetSubsteps_ }
 		{
 			bodies.reserve(maxBodies);
-			sphColliders.reserve(maxColliders);
-			capColliders.reserve(maxColliders);
-			cvxColliders.reserve(maxColliders);
-			meshColliders.reserve(maxColliders);
+			colliders.spheres.reserve(maxColliders);
+			colliders.capsules.reserve(maxColliders);
+			colliders.hulls.reserve(maxColliders);
 		}
 
 
@@ -56,86 +59,57 @@ namespace drb {
 		RayCastHit World::RayCastQuery(Ray const& r)
 		{
 			// O(n^2) brute force -- can be simplified with broadphase structure
+			RayCastHit result{};
 
 			// Check rigidbodies
 			for (auto&& rb : bodies)
 			{
 				Mat4 const rbTr = rb.GetTransformMatrix();
 
-				for (auto&& s : rb.spheres)
+				rb.geometry->ForEachCollider([&]<Shape T>(CollisionShape<T> const& s)
 				{
 					AABB const b = MakeAABB(s.shape, rbTr * s.transform);
-					if (auto result = RayCast(r, b); result.hit) {
-						return RayCastHit{
-							.result = result,
-							.body = &rb,
-							.sph = &s
-						};
+					if (auto cast = RayCast(r, b); cast.distance < result.info.distance) 
+					{
+						result.info = cast;
+						result.body = &rb;
+						result.shape = &s;
 					}
-				}
-
-				for (auto&& s : rb.capsules)
-				{
-					AABB const b = MakeAABB(s.shape, rbTr * s.transform);
-					if (auto result = RayCast(r, b); result.hit) {
-						return RayCastHit{
-							.result = result,
-							.body = &rb,
-							.cap = &s
-						};
-					}
-				}
-
-				for (auto&& s : rb.hulls)
-				{
-					AABB const b = MakeAABB(s.shape, rbTr * s.transform);
-					if (auto result = RayCast(r, b); result.hit) {
-						return RayCastHit{
-							.result = result,
-							.body = &rb,
-							.cvx = &s
-						};
-					}
-				}
+				});
 			}
-
 
 			// Check static geometry
-
-			for (auto&& s : sphColliders)
+			for (auto&& s : colliders.spheres)
 			{
 				AABB const b = MakeAABB(s.shape, s.transform);
-				if (auto result = RayCast(r, b); result.hit) {
-					return RayCastHit{
-						.result = result,
-						.sph = &s
-					};
+				if (auto cast = RayCast(r, b); cast.distance < result.info.distance)
+				{
+					result.info = cast;
+					result.shape = &s;
 				}
 			}
 
-			for (auto&& s : capColliders)
+			for (auto&& s : colliders.capsules)
 			{
 				AABB const b = MakeAABB(s.shape, s.transform);
-				if (auto result = RayCast(r, b); result.hit) {
-					return RayCastHit{
-						.result = result,
-						.cap = &s
-					};
+				if (auto cast = RayCast(r, b); cast.distance < result.info.distance)
+				{
+					result.info = cast;
+					result.shape = &s;
 				}
 			}
 
-			for (auto&& s : cvxColliders)
+			for (auto&& s : colliders.hulls)
 			{
 				AABB const b = MakeAABB(s.shape, s.transform);
-				if (auto result = RayCast(r, b); result.hit) {
-					return RayCastHit{
-						.result = result,
-						.cvx = &s
-					};
+				if (auto cast = RayCast(r, b); cast.distance < result.info.distance)
+				{
+					result.info = cast;
+					result.shape = &s;
 				}
 			}
 
-			return RayCastHit{};
+			return result;
 		}
 	}
 }

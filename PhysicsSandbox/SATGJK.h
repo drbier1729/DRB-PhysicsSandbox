@@ -31,6 +31,7 @@ namespace drb::physics {
 			//	QueryEdge(A, B)
 			FaceQuery SATQueryFaceDirections(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
 			EdgeQuery SATQueryEdgeDirections(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
+			Float32	  SeparationOnAxis(Vec3 const& axis, Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
 
 
 			// -----------------------------------------------------------------

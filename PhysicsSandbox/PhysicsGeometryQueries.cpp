@@ -35,7 +35,7 @@ namespace drb {
 			static inline void               Flip(ContactManifold& manifold);
 
 			// Helper to create the contact manifold for face collisions found during SAT 
-			static		  ContactManifold	 GenerateFaceContact(FaceQuery const& fq, Convex const& reference, Convex const& incident, Mat4 const& incToRef);
+			static		  ContactManifold	 GenerateFaceContact(FaceQuery const& fq, Convex const& reference, Mat4 const& refTr, Convex const& incident, Mat4 const& incTr);
 		}
 
 
@@ -208,21 +208,19 @@ namespace drb {
 			Bool const faceContactA = fqA.separation * bias > eq.separation;
 			Bool const faceContactB = fqB.separation * bias > eq.separation;
 
-			if (faceContactA && faceContactB)
+			if (faceContactA && faceContactB) // Create Face-Face contacts
 			{
 				if (fqA.separation * bias > fqB.separation)
 				{
-					Mat4 const BtoA = glm::inverse(trA) * trB;
-					result = util::GenerateFaceContact(fqA, A, B, BtoA);
+					result = util::GenerateFaceContact(fqA, A, trA, B, trB);
 				}
 				else
 				{
-					Mat4 const AtoB = glm::inverse(trB) * trA;
-					result = util::GenerateFaceContact(fqB, B, A, AtoB);
+					result = util::GenerateFaceContact(fqB, B, trB, A, trA);
 					util::Flip(result);
 				}
 			}
-			else // Create Edge-Edge Contact
+			else // Create Edge-Edge contact
 			{
 				// First find closest points on the two witness edges
 				Convex::HalfEdge const edgeA = A.edges[eq.indexA];
@@ -237,12 +235,12 @@ namespace drb {
 
 				// Then build the contact with position at midpoint between closest points
 				result.contacts[result.numContacts++] = Contact{
-					.featureA = {.index = eq.indexA, .type = Feature::Type::Edge },
-					.featureB = {.index = eq.indexB, .type = Feature::Type::Edge },
 					.position = 0.5f * (closestPts.ptA + closestPts.ptB),
 					.penetration = -eq.separation
 				};
 				result.normal = eq.normal;
+				result.featureA = { .index = eq.indexA, .type = Feature::Type::Edge };
+				result.featureB = { .index = eq.indexB, .type = Feature::Type::Edge };
 			}
 
 			return result;
@@ -389,9 +387,7 @@ namespace drb {
 			static inline void Flip(ContactManifold& m)
 			{
 				m.normal *= -1.0f;
-				for (Uint32 i = 0; i < m.numContacts; ++i) {
-					std::swap(m.contacts[i].featureA, m.contacts[i].featureB);
-				}
+				std::swap(m.featureA, m.featureB);
 			}
 
 
@@ -403,15 +399,16 @@ namespace drb {
 			}
 
 
-
-			static ContactManifold GenerateFaceContact(FaceQuery const& fq, Convex const& reference, Convex const& incident, Mat4 const& incToRefLocal)
+			// See Dirk Gregorius "Robust Contact Manifolds" GDC
+			static ContactManifold GenerateFaceContact(FaceQuery const& fq, Convex const& reference, Mat4 const& refTr, Convex const& incident, Mat4 const& incTr)
 			{
+				Mat4 const incToRefLocal = glm::inverse(refTr) * incTr;
+
 				Convex::Face const& refFace = reference.faces[fq.index];
 				
 				// Find the incident face
-				Uint8   incFaceIdx = Convex::MAX_EDGES;
+				Uint8   incFaceIdx = Convex::INVALID_INDEX;
 				Float32 minDotProd = std::numeric_limits<Float32>::max();
-
 				for (Uint8 i = 0; i < incident.faces.size(); ++i)
 				{
 					Vec3 const    n   = Transformed(incident.faces[i].plane, incToRefLocal).n;
@@ -424,20 +421,169 @@ namespace drb {
 				}
 				Convex::Face const& incFace = incident.faces[incFaceIdx];
 
-				// Clip the incident face
-				Polygon const incFacePoly = FaceAsPolygon(incident, incToRefLocal, incFace);
-				Polygon front{}, back{};
+				// Clip the incident face against edge planes of reference face
+				Polygon incFacePoly = FaceAsPolygon(incident, incToRefLocal, incFace);
+				Polygon frontPoly{}, backPoly{};
+				ForEachEdgeOfFace(reference, refFace, [&](Convex::HalfEdge edge) {
 
-					// For each edge of refFace:
-					// -> generate plane for the edge with normal orthogonal to refFace.plane.n and pointing outward
-					// -> call SplitPolygon(facePoly, edgePlane, front, back);
-					// -> keep points in "back"
+					// Create a plane orthogonal to refFace and containing
+					// endpoints of edge
+					Convex::HalfEdge const twin = reference.edges[edge.twin];
+					Vec3 const p0 = reference.verts[edge.origin];
+					Vec3 const p1 = reference.verts[twin.origin];
+					Vec3 const p2 = p1 + refFace.plane.n;
+					Plane const edgePlane = MakePlane(p0, p1, p2); // normal pointing "inward" toward refFace center
+
+					// Split incident face on edgePlane
+					SplitPolygon(incFacePoly, edgePlane, frontPoly, backPoly);
+
+					// Save the points in front of the edgePlane
+					std::swap(incFacePoly.verts, frontPoly.verts);
+					frontPoly.verts.clear();
+				});
+
+				// Keep only points in clipped incident face which are behind or on reference face plane
+				std::erase_if(incFacePoly.verts, [&refFace](Vec3 const& p) {
+					return ClassifyPointToPlane(p, refFace.plane) == Side::Front;
+				});
+
+
+				// Possible that clipping has removed ALL points...
+				Uint32 const numCandidates = incFacePoly.verts.size();
+				if (numCandidates == 0) { return ContactManifold{}; }
+
+
+				// Start generating our manifold
+				ContactManifold m{
+					.featureA = { .index = fq.index,   .type = Feature::Type::Face },
+					.featureB = { .index = incFaceIdx, .type = Feature::Type::Face },
+					.normal = Mat3(refTr) * refFace.plane.n
+				};
+
+
+				// Reduce the clipped and projected incident face to at most 
+				// 4 contact points. This is a bit of a tricky process -- see
+				// D.G.'s GDC talk...
 				
-				// Project contact points onto reference face
-				// ...
+				// First, project contact points onto reference face, and identify the deepest 
+				// point (which is needed for CCD) -- this will be our first contact point
+				std::vector<Float32> depths(numCandidates, 0.0f);
+				Uint32  p0Idx = 0;
+				Float32 deepest = std::numeric_limits<Float32>::max();
+				for (Uint32 i = 0; i < numCandidates; ++i) {
+					
+					Float32 const depth = SignedDistance(incFacePoly.verts[i], refFace.plane);
+					if (depth < deepest) {
+						deepest = depth;
+						p0Idx = i;
+					}
 
-				// Reduce the clipped and projected incident face to 4 contact points
-				// ...
+					// Save the depth then project onto ref face
+					depths.push_back(depth);
+					incFacePoly.verts[i] -= depth * refFace.plane.n;
+				}
+				Vec3 const p0 = incFacePoly.verts[p0Idx];
+				m.contacts[m.numContacts++] = Contact{
+					.position = refTr * Vec4(p0, 1.0f),
+					.penetration = -deepest
+				};
+				if (numCandidates == 1) { return m;	}
+
+
+				// Now identify the candidate furthest away from p0
+				Int32  p1Idx = -1;
+				Float32 furthest = std::numeric_limits<Float32>::lowest();
+				for (Int32 i = 0; i < numCandidates; ++i) {
+					if (i == p0Idx) { continue; }
+
+					Float32 const dist2 = glm::distance2(p0, incFacePoly.verts[i]);
+					if (dist2 > furthest) {
+						furthest = dist2;
+						p1Idx = i;
+					}
+				}
+				ASSERT(p1Idx >= 0, "Invalid index");
+				Vec3 const p1 = incFacePoly.verts[p1Idx];
+				m.contacts[m.numContacts++] = Contact{
+					.position = refTr * Vec4(p1, 1.0f),
+					.penetration = -depths[p1Idx]
+				};
+				if (numCandidates == 2) { return m; }
+				
+
+				// Next, identify the point which maximizes the (positive) area of 
+				// triangle p0-p1-p2
+				Uint32 p2Idx = -1;
+				Float32 maxTriArea = 0;
+				for (Uint32 i = 0; i < incFacePoly.verts.size(); ++i) {
+					if (i == p0Idx || i == p1Idx) { continue; }
+
+					Vec3 const u = p0 - incFacePoly.verts[i];
+					Vec3 const v = p1 - incFacePoly.verts[i];
+					Float32 const area = glm::dot(glm::cross(u, v), refFace.plane.n);
+					if (area > maxTriArea) {
+						maxTriArea = area;
+						p2Idx = i;
+					}
+				}
+				ASSERT(p2Idx >= 0, "Invalid index");
+				Vec3 const p2 = incFacePoly.verts[p2Idx];
+				m.contacts[m.numContacts++] = Contact{
+					.position = refTr * Vec4(p2, 1.0f),
+					.penetration = -depths[p2Idx]
+				};
+				if (numCandidates == 3) { return m; }
+
+				// Finally, we identify the point on the opposite side of 
+				// edge p0-p1 from p2 that maximizes the area of the quad
+				// by looking for the point that would give us the most 
+				// negative area when a triangle is formed with a pair of 
+				// our current points
+				Uint32  p3Idx = -1;
+				Float32 minTriArea = 0;
+				for (Uint32 i = 0; i < incFacePoly.verts.size(); ++i) {
+					if (i == p0Idx || i == p1Idx || i == p2Idx) { continue; }
+
+
+					Vec3 const u = p0 - incFacePoly.verts[i];
+					Vec3 const v = p1 - incFacePoly.verts[i];
+					Vec3 const w = p2 - incFacePoly.verts[i];
+
+					// Test triangle p0p1p3
+					{
+						Float32 const area = glm::dot(glm::cross(u, v), refFace.plane.n);
+						if (area < minTriArea) {
+							minTriArea = area;
+							p3Idx = i;
+						}
+					}
+					
+					// Test triangle p1p2p3
+					{
+						Float32 const area = glm::dot(glm::cross(v, w), refFace.plane.n);
+						if (area < minTriArea) {
+							minTriArea = area;
+							p3Idx = i;
+						}
+					}
+					
+					// Test triangle p2p0p3
+					{
+						Float32 const area = glm::dot(glm::cross(w, u), refFace.plane.n);
+						if (area < minTriArea) {
+							minTriArea = area;
+							p3Idx = i;
+						}
+					}
+				}
+				ASSERT(p3Idx >= 0, "Invalid index");
+				Vec3 const p3 = incFacePoly.verts[p3Idx];
+				m.contacts[m.numContacts++] = Contact{
+					.position = refTr * Vec4(p3, 1.0f),
+					.penetration = -depths[p3Idx]
+				};
+				
+				return m;
 			}
 		}
 	}

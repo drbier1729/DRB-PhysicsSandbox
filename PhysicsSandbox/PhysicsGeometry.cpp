@@ -29,12 +29,9 @@ namespace drb {
 
 
 		// See Ericson 8.3.4 (Sutherland-Hodgman clipping with fat planes)
-		void SplitPolygon(Polygon const& poly, Plane const& plane, Polygon& frontPoly, Polygon& backPoly)
-		{
-			ASSERT(frontPoly.verts.empty() && backPoly.verts.empty(), "Out param polygons must be empty");
-
-			std::vector<Vec3> frontVerts{}, backVerts{};
-			
+		// TODO : verify that this maintains ordering of original poly (i.e. counterclockwise)
+		void SplitPolygon(Polygon const& poly, Plane const& plane, Polygon& front, Polygon& back)
+		{			
 			// Test all edges (a, b) starting with edge from last to first vertex
 			auto const numVerts = poly.verts.size();
 
@@ -42,14 +39,14 @@ namespace drb {
 		    auto aSide = ClassifyPointToPlane(a, plane);
 
 			// Loop over all edges given by vertex pair (n-1, n)
-			for (auto n = 0ull; n < numVerts; n++) 
-			{	
+			for (auto n = 0ull; n < numVerts; n++)
+			{
 				Vec3 const b = poly.verts[n];
 				auto const bSide = ClassifyPointToPlane(b, plane);
 
-				if (bSide == Side::Front) 
+				if (bSide == Side::Front)
 				{
-					if (aSide == Side::Back) 
+					if (aSide == Side::Back)
 					{
 						// Edge (a, b) straddles, output intersection point to both sides
 						// Consistently clip edge as ordered going from in front -> back
@@ -58,16 +55,16 @@ namespace drb {
 						Intersect(Segment{ .b = b, .e = a }, plane, t, i);
 
 						ASSERT(ClassifyPointToPlane(i, plane) == Side::On, "Intersection point must be on plane");
-						
-						frontVerts.push_back(i);
-						backVerts.push_back(i);
+
+						front.verts.push_back(i);
+						back.verts.push_back(i);
 					}
 					// In all three cases, output b to the front side
-					frontVerts.push_back(b);
+					front.verts.push_back(b);
 				}
-				else if (bSide == Side::Back) 
+				else if (bSide == Side::Back)
 				{
-					if (aSide == Side::Front) 
+					if (aSide == Side::Front)
 					{
 						// Edge (a, b) straddles plane, output intersection point
 						Vec3 i{};
@@ -76,26 +73,26 @@ namespace drb {
 
 						ASSERT(ClassifyPointToPlane(i, plane) == Side::On, "Intersection point must be on plane");
 
-						frontVerts.push_back(i);
-						backVerts.push_back(i);
+						front.verts.push_back(i);
+						back.verts.push_back(i);
 					}
-					else if (aSide == Side::On) 
+					else if (aSide == Side::On)
 					{
 						// Output a when edge (a, b) goes from ‘on’ to ‘behind’ plane
-						backVerts.push_back(a);
+						back.verts.push_back(a);
 					}
 					// In all three cases, output b to the back side
-					backVerts.push_back(b);
+					back.verts.push_back(b);
 				}
-				else 
+				else
 				{
 					// b is on the plane. In all three cases output b to the front side
-					frontVerts.push_back(b);
+					front.verts.push_back(b);
 
 					// In one case, also output b to back side
-					if (aSide == Side::Back) 
+					if (aSide == Side::Back)
 					{
-						backVerts.push_back(b);
+						back.verts.push_back(b);
 					}
 				}
 
@@ -103,10 +100,6 @@ namespace drb {
 				a = b;
 				aSide = bSide;
 			}
-
-			// Create (and return) two new polygons from the two vertex lists
-			frontPoly.verts = std::move(frontVerts);
-			backPoly.verts = std::move(backVerts);
 		}
 
 

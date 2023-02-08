@@ -30,6 +30,9 @@ namespace drb {
 			// oriented counterclockwise
 			std::vector<Vec3> verts;
 		};
+
+		// This function pushes vertices into frontPoly and backPoly after classifying those
+		// points as being in front of or behind plane. Uses Sutherland-Hodgeman clipping algorithm.
 		void SplitPolygon(Polygon const& poly, Plane const& plane, Polygon& frontPoly, Polygon& backPoly);
 
 
@@ -104,16 +107,16 @@ namespace drb {
 		struct Convex 
 		{
 			struct HalfEdge {
-				Uint8 next = MAX_EDGES;
-				Uint8 twin = MAX_EDGES;
-				Uint8 origin = MAX_EDGES;
-				Uint8 face = MAX_EDGES;
+				Uint8 next = INVALID_INDEX;
+				Uint8 twin = INVALID_INDEX;
+				Uint8 origin = INVALID_INDEX;
+				Uint8 face = INVALID_INDEX;
 
 				constexpr bool operator==(HalfEdge const&) const = default;
 			};
 
 			struct Face {
-				Uint8 edge = MAX_EDGES;
+				Uint8 edge = INVALID_INDEX;
 				Plane plane = {};
 
 				constexpr bool operator==(Face const&) const = default;
@@ -124,13 +127,15 @@ namespace drb {
 			std::vector<HalfEdge>	 edges{};    // stored s.t. each edge is adjacent to its twin
 			std::vector<Face>		 faces{};
 
-			static constexpr auto MAX_EDGES = std::numeric_limits<Uint8>::max();
-			static constexpr auto type = ColliderType::Convex;
+			static constexpr auto MAX_EDGES     = std::numeric_limits<Uint8>::max() - 1;
+			static constexpr auto INVALID_INDEX = std::numeric_limits<Uint8>::max();
+			static constexpr auto type          = ColliderType::Convex;
 		};
 		inline Convex  MakeBox(Vec3 const& halfwidths);
 		inline Convex  MakeTetrahedron(Vec3 const& p0, Vec3 const& p1, Vec3 const& p2, Vec3 const& p3); // note that this will shift the points s.t. the centroid is at (0,0,0)
 		inline Mat3    ComputeInertiaTensor(Convex const& hull);
 		inline void    ForEachOneRingNeighbor(Convex const& hull, Convex::HalfEdge const& start, std::invocable<Convex::HalfEdge> auto fn);
+		inline void    ForEachEdgeOfFace(Convex const& hull, Convex::Face const& face, std::invocable<Convex::HalfEdge> auto fn);
 		inline AABB    MakeAABB(Convex const& hull, Mat4 const& tr);
 		inline Polygon FaceAsPolygon(Convex const& hull, Mat4 const& tr, Convex::Face const& face);
 

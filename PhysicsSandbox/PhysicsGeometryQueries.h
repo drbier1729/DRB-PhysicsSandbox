@@ -40,11 +40,10 @@ namespace drb {
 
 		struct Contact 
 		{
-			Feature featureA = {}, featureB = {};
-
 			Vec3    position = {};	 // in world coordinates
 			Float32 penetration = std::numeric_limits<Float32>::lowest(); // greater than 0 indicates overlap
 
+			// For sequential impulses
 			Float32 impulseN = 0.0f, impulseT = 0.0f; // normal and tangent impulses
 			Float32 massN = 0.0f, massT = 0.0f;		  // normal and tangent effective masses
 			Float32 bias = 0.0f;
@@ -55,6 +54,7 @@ namespace drb {
 		{
 			static constexpr Uint32 MAX_CONTACTS = 4u;
 
+			Feature featureA = {}, featureB = {}; // either face or edge
 			Contact contacts[MAX_CONTACTS] = {};
 			Uint32  numContacts = 0;
 			Vec3    normal = {}; // Always points from object A toward object B. Unit length.

@@ -291,12 +291,9 @@ namespace drb {
 		{
 			Polygon poly{};
 
-			Convex::HalfEdge const start = hull.edges[face.edge];
-			Convex::HalfEdge e = start;
-			do {
+			ForEachEdgeOfFace(hull, face, [&](Convex::HalfEdge e) {
 				poly.verts.emplace_back(tr * Vec4(hull.verts[e.origin], 1));
-				e = hull.edges[e.next];
-			} while (e != start);
+			});
 
 			return poly;
 		}
@@ -315,6 +312,15 @@ namespace drb {
 				neighbor = hull.edges[hull.edges[neighbor.next].twin];
 
 			} while (neighbor != firstNeighbor);
+		}
+
+		inline void ForEachEdgeOfFace(Convex const& hull, Convex::Face const& face, std::invocable<Convex::HalfEdge> auto fn)
+		{
+			Convex::HalfEdge e = face.edge;
+			do {
+				fn( e );
+				e = hull.edges[e.next];
+			} while (e != face.edge);
 		}
 
 		inline Plane MakePlane(Vec3 const& normal, Vec3 const& point) 

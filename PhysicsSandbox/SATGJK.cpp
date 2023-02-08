@@ -26,10 +26,11 @@ namespace drb::physics::util {
 
 	// If this uses hill climbing, returns the same as GetSupportHillClimbing, else returns a support point
 	// and the "e" field is left defaulted. Start hint is an optional argument specifying where hill climbing
-	// should begin.
+	// should begin. Note that startHint is assumed to be a valid edge from hull, but this is not checked!
 	static inline CvxSupport GetSupport(Convex const& hull, Vec3 const& dir, Convex::HalfEdge startHint = {});
 
-	// Returns support point in local space and an edge with the support point as its origin
+	// Returns support point in local space and an edge with the support point as its origin. See comment for
+	// "GetSupport" for more details.
 	static inline CvxSupport GetSupportHillClimbing(Convex const& hull, Vec3 const& dir, Convex::HalfEdge startHint);
 	
 	// Computes the signed distance from plane to the closest point on the hull
@@ -49,6 +50,18 @@ namespace drb::physics::util {
 	// -------------------------------------------------------------------------
 	// SAT Implementation
 	// -------------------------------------------------------------------------
+
+	// axis pointing from A->B in world space
+	Float32	  SeparationOnAxis(Vec3 const& axis, Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
+	{
+		Vec3 const axisLocalA = glm::inverse(trA) * Vec4(axis, 0);
+		Vec3 const axisLocalB = glm::inverse(trB) * Vec4(axis, 0);
+
+		auto [ptA, eA] = GetSupport(A, axisLocalA);
+		auto [ptB, eB] = GetSupport(B, -axisLocalB);
+
+		return glm::dot( Vec3(trB * Vec4(ptB, 1) - trA * Vec4(ptA, 1)), axis );
+	}
 
 	FaceQuery SATQueryFaceDirections(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
 	{
@@ -214,7 +227,9 @@ namespace drb::physics::util {
 
 		if (hull.verts.size() > hillClimbingThreshold) 
 		{
-			if (hillClimbingHint == Convex::HalfEdge{})	{ hillClimbingHint = hull.edges[0]; }
+			if (hillClimbingHint.origin == Convex::INVALID_INDEX) { 
+				hillClimbingHint = hull.edges[0]; 
+			}
 			
 			return GetSupportHillClimbing(hull, dir, hillClimbingHint);
 		}
@@ -249,7 +264,7 @@ namespace drb::physics::util {
 		//	-> Move to the neighbor whose projection onto dir is maximal, or exit if none found
 		
 		Float32 maxProj = std::numeric_limits<Float32>::lowest();
-		Uint8 lastVisitedVertex = Convex::MAX_EDGES;
+		Uint8 lastVisitedVertex = Convex::INVALID_INDEX;
 		Bool found = true;
 
 		while (found) 

@@ -26,6 +26,7 @@ namespace drb {
 			CollisionGeometry      colliders;
 
 			// Contacts between RigidBody collision geometries
+			// (use std::map to maintain consistent solver order)
 			std::map<ManifoldKey, ContactManifold> contacts;
 
 			// Simulation variables
@@ -66,6 +67,11 @@ namespace drb {
 			// -----------------------------------------------------------------
 			
 			// ...
+
+		private:
+			
+			// Currently brute-force O(n^2) narrowphase -- very inefficient
+			void DetectCollisions();
 
 		};
 

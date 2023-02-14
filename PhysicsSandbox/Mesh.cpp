@@ -10,7 +10,7 @@
 
 namespace drb {
 
-	std::unique_ptr<Mesh> Mesh::sphere{}, Mesh::cube{}, Mesh::cylinder{}, Mesh::cone{};
+	std::unique_ptr<Mesh> Mesh::sphere{}, Mesh::cube{}, Mesh::cylinder{}, Mesh::cone{}, Mesh::quad{};
 
 	Mesh::Mesh(float const* verts, size_t verts_sz, unsigned const* idxs, size_t idxs_sz)
 		: m_verts_sz{verts_sz},
@@ -105,6 +105,30 @@ namespace drb {
 
 
 	// STATIC METHODS
+
+	Mesh const* Mesh::QuadPtr()
+	{
+		static constexpr float quad_verts[] = {
+		     // vertices		   normal	           uv
+			0.0f, -0.5f, -0.5f,   1.0f, 0.0f, 0.0f,   0.0f, 1.0f,
+			0.0f,  0.5f, -0.5f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,
+			0.0f, -0.5f,  0.5f,   1.0f, 0.0f, 0.0f,   0.0f, 0.0f,
+			0.0f,  0.5f,  0.5f,   1.0f, 0.0f, 0.0f,   1.0f, 0.0f
+		};
+
+		static constexpr unsigned quad_idxs[] = {
+			0, 1, 3,
+			3, 2, 0,
+			0, 3, 1,
+			3, 0, 2
+		};
+
+		if (not quad) {
+			quad = std::make_unique<Mesh>(quad_verts, sizeof(quad_verts) / sizeof(float), quad_idxs, sizeof(quad_idxs) / sizeof(unsigned));
+		}
+
+		return quad.get();
+	}
 
 	Mesh const* Mesh::CubePtr() 
 	{

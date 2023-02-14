@@ -68,8 +68,8 @@ namespace drb {
 
 		mWorld.CreateRigidBody()
 			.SetPosition(Vec3(0, 5, 0))
-			.SetGravityScale(0.2f)
-			.SetCollisionGeometry(geomA);
+			.SetGravityScale(0.0f)
+			.SetCollisionGeometry(geomC);
 
 		mWorld.CreateRigidBody()
 			.SetPosition(Vec3(5, 0, 0))
@@ -176,7 +176,7 @@ namespace drb {
 					mRecorder.Record();
 					
 					// Other work requiring fixed update
-					mSelected->AddRelativeForce(Vec3(mArrows.x * 1000 * fixedDT, 0, 0), Vec3(0, 2, 0));
+					mSelected->AddForce(Vec3(mArrows.x, mArrows.y, 0) * 100.0f);
 					// ...
 
 					accumulatedTime -= fixedDeltaTime;
@@ -215,6 +215,7 @@ namespace drb {
 					.opacity = 0.4f
 					})
 				.DrawStaticCollisionGeometry()
+				.DrawContactManifolds()
 				.EndDraw();
 			
 			// Draw inspector

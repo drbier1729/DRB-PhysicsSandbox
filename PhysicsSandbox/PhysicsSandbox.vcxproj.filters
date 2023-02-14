@@ -106,6 +106,9 @@
       <Filter>Source Files\Physics\Collision</Filter>
     </ClCompile>
     <ClCompile Include="SATGJK.cpp">
+      <Filter>Source Files\Physics\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryQueryDataStructures.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -174,6 +177,9 @@
       <Filter>Header Files\Physics\Collision</Filter>
     </ClInclude>
     <ClInclude Include="SATGJK.h">
+      <Filter>Header Files\Physics\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryQueryDataStructures.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -208,8 +214,14 @@
     <None Include="PhysicsGeometryQueries.inl">
       <Filter>Header Files\Physics\Collision</Filter>
     </None>
+    <None Include="Mesh.inl">
+      <Filter>Header Files\Engine</Filter>
+    </None>
     <None Include="SATGJK.inl">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Physics\Collision</Filter>
+    </None>
+    <None Include="PhysicsDebugDrawing.inl">
+      <Filter>Header Files\Physics\Debug</Filter>
     </None>
   </ItemGroup>
 </Project>

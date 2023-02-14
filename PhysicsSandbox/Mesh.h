@@ -56,10 +56,12 @@ namespace drb {
 		static inline Mesh const& Sphere();
 		static inline Mesh const& Cylinder();
 		static inline Mesh const& Cone();
+		static inline Mesh const& Quad();
 		static Mesh const* CubePtr();
 		static Mesh const* SpherePtr();
 		static Mesh const* CylinderPtr();
 		static Mesh const* ConePtr();
+		static Mesh const* QuadPtr();
 		static Mesh BuildFromFile(const char* filename);
 
 	private:
@@ -70,35 +72,13 @@ namespace drb {
 		unsigned m_ebo = 0;
 
 
-		static std::unique_ptr<Mesh> sphere, cube, cylinder, cone;
+		static std::unique_ptr<Mesh> sphere, cube, cylinder, cone, quad;
 	};
 
 
-	// Inline definitions
-	inline bool Mesh::IsValid() const noexcept 
-	{ 
-		return (m_vao != 0); 
-	}
-
-	inline Mesh const& Mesh::Cylinder()
-	{
-		return *CylinderPtr();
-	}
-
-	inline Mesh const& Mesh::Sphere()
-	{
-		return *SpherePtr();
-	}
-
-	inline Mesh const& Mesh::Cube()
-	{
-		return *CubePtr();
-	}
 	
-	inline Mesh const& Mesh::Cone()
-	{
-		return *ConePtr();
-	}
 }
+
+#include "Mesh.inl"
 #endif
 

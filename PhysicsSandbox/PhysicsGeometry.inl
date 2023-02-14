@@ -287,8 +287,10 @@ namespace drb {
 		}
 	
 
-		inline Polygon FaceAsPolygon(Convex const& hull, Mat4 const& tr, Convex::Face const& face)
+		inline Polygon FaceAsPolygon(Convex const& hull, Mat4 const& tr, Convex::FaceID face)
 		{
+			ASSERT(face < hull.faces.size(), "Index out of range");
+		
 			Polygon poly{};
 
 			ForEachEdgeOfFace(hull, face, [&](Convex::HalfEdge e) {
@@ -299,9 +301,11 @@ namespace drb {
 		}
 
 
-		inline void ForEachOneRingNeighbor(Convex const& hull, Convex::HalfEdge const& start, std::invocable<Convex::HalfEdge> auto fn)
+		inline void ForEachOneRingNeighbor(Convex const& hull, Convex::EdgeID start, std::invocable<Convex::HalfEdge> auto fn)
 		{
-			Convex::HalfEdge const firstNeighbor = hull.edges[start.twin];
+			ASSERT(start < hull.edges.size(), "Index out of range");
+
+			Convex::HalfEdge const firstNeighbor = hull.edges[hull.edges[start].twin];
 			
 			Convex::HalfEdge neighbor = firstNeighbor;
 			do {
@@ -314,13 +318,17 @@ namespace drb {
 			} while (neighbor != firstNeighbor);
 		}
 
-		inline void ForEachEdgeOfFace(Convex const& hull, Convex::Face const& face, std::invocable<Convex::HalfEdge> auto fn)
+		inline void ForEachEdgeOfFace(Convex const& hull, Convex::FaceID face, std::invocable<Convex::HalfEdge> auto fn)
 		{
-			Convex::HalfEdge e = face.edge;
+			ASSERT(face < hull.faces.size(), "Index out of range");
+
+			Convex::HalfEdge const start = hull.edges[hull.faces[face].edge];
+
+			Convex::HalfEdge e = start;
 			do {
 				fn( e );
 				e = hull.edges[e.next];
-			} while (e != face.edge);
+			} while (e != start);
 		}
 
 		inline Plane MakePlane(Vec3 const& normal, Vec3 const& point) 

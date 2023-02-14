@@ -18,6 +18,7 @@ namespace drb {
 		}
 
 
+#ifdef DRB_PHYSICS_XPBD
 		void World::Step(Float32 dt)
 		{
 			// Broadphase Collision Detection
@@ -25,7 +26,7 @@ namespace drb {
 
 
 			// Narrowphase Collision Detection + Contact Generation
-			// ...
+			DetectCollisions();
 
 
 			// XPBD loop with substepping
@@ -36,6 +37,7 @@ namespace drb {
 
 				// Solve Position constraints
 				// - Collision Resolution
+				// - HeightMap constraint/collision
 
 				for (auto&& rb : bodies) { rb.ProjectVelocities(h); }
 
@@ -54,7 +56,34 @@ namespace drb {
 			// Collision Callbacks
 			// ...
 		}
+#else
+		void World::Step(Float32 dt)
+		{
+			// Broadphase Collision Detection
+			// ...
 
+
+			// Narrowphase Collision Detection + Contact Generation
+			DetectCollisions();
+
+			// Sequential Impulses loop with substepping
+			for (auto&& rb : bodies) { rb.ProjectForces(dt); }
+
+			Float32 const h = dt / targetSubsteps;
+			for (Uint32 i = 0; i < targetSubsteps; ++i)
+			{
+				// Solve Velocity constraints
+				// - Collision Resolution
+				// - HeightMap constraint/collision
+			}
+
+			for (auto&& rb : bodies) { rb.ProjectVelocities(dt); }
+
+			// Collision Callbacks
+			// ...
+		}
+
+#endif
 
 		RayCastHit World::RayCastQuery(Ray const& r)
 		{
@@ -110,6 +139,82 @@ namespace drb {
 			}
 
 			return result;
+		}
+
+		void World::DetectCollisions()
+		{
+			Uint32 const numBodies = static_cast<Uint32>(bodies.size());
+			for (Uint32 i = 0; i < numBodies; ++i) 
+			{
+				Mat4 const trA   = bodies[i].GetTransformMatrix();
+				auto const geomA = bodies[i].geometry;
+
+				// Test against static geometry
+				geomA->ForEachCollider([&]<Shape T>(CollisionShape<T> const& A) {
+
+					Mat4 const shapeTrA = trA * A.transform;
+
+					colliders.ForEachCollider([&]<Shape U>(CollisionShape<U> const& B) {
+
+						ContactManifold const m = Collide(A.shape, shapeTrA, B.shape, B.transform);
+						ManifoldKey const key(&bodies[i], &A, &worldBody, &B);
+
+						if (m.numContacts > 0)
+						{
+							auto it = contacts.find(key);
+							if (it != contacts.end())
+							{
+								it->second = m;
+							}
+							else
+							{
+								contacts.emplace(key, m);
+							}
+						}
+						else
+						{
+							contacts.erase(key);
+						}
+					});
+				});
+
+				// Test against other rigidbodies
+				for (Uint32 j = i + 1; j < numBodies; ++j)
+				{
+					Mat4 const trB   = bodies[j].GetTransformMatrix();
+					auto const geomB = bodies[j].geometry;
+
+					geomA->ForEachCollider([&]<Shape T>(CollisionShape<T> const& A) {
+						
+						Mat4 const shapeTrA = trA * A.transform;
+						
+						geomB->ForEachCollider([&]<Shape U>(CollisionShape<U> const& B) {
+							
+							Mat4 const shapeTrB = trB * B.transform;
+
+							ContactManifold const m = Collide(A.shape, shapeTrA, B.shape, shapeTrB);
+							ManifoldKey const key(&bodies[i], &A, &bodies[j], &B);
+							
+							if (m.numContacts > 0)
+							{
+								auto it = contacts.find(key);
+								if (it != contacts.end()) 
+								{
+									it->second = m;
+								}
+								else
+								{
+									contacts.emplace(key, m);
+								}
+							}
+							else 
+							{
+								contacts.erase(key);
+							}
+						});
+					});
+				}
+			}
 		}
 	}
 }

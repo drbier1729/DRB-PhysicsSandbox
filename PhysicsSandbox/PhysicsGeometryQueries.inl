@@ -3,7 +3,7 @@ namespace drb {
 	namespace physics {
 
 		// See Ericson Ch. 5
-		inline Ray::CastResult RayCast(Ray const& r, AABB const& aabb)
+		inline CastResult RayCast(Ray const& r, AABB const& aabb)
 		{
 			Float32 tmin = 0.0f;
 			Float32 tmax = std::numeric_limits<Float32>::max();
@@ -14,7 +14,7 @@ namespace drb {
 				if (EpsilonEqual(r.d[i], 0.0f))
 				{
 					// Ray is parallel to slab. No hit if origin not within slab
-					if (r.p[i] < aabb.min[i] || r.p[i] > aabb.max[i]) { return Ray::CastResult{}; }
+					if (r.p[i] < aabb.min[i] || r.p[i] > aabb.max[i]) { return CastResult{}; }
 				}
 				else {
 					// Compute intersection t value of ray with near and far plane of slab
@@ -30,12 +30,12 @@ namespace drb {
 					tmax = std::min(tmax, t2);
 
 					// Exit with no collision as soon as slab intersection becomes empty
-					if (tmin > tmax) { return Ray::CastResult{}; }
+					if (tmin > tmax) { return CastResult{}; }
 				}
 			}
 
 			// Ray intersects all 3 slabs. Return point (q) and intersection t value (tmin)
-			return Ray::CastResult{
+			return CastResult{
 				.point = r.p + r.d * tmin,
 				.distance = tmin,
 				.hit = true

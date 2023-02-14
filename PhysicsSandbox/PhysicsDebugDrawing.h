@@ -21,7 +21,8 @@ namespace drb {
 		struct Convex;
 		class World;
 		class RigidBody;
-
+		struct ContactManifold;
+		struct Plane;
 
 		class DebugRenderer
 		{
@@ -49,10 +50,12 @@ namespace drb {
 			// them in order to use/unuse the debug shader.
 			DebugRenderer const& BeginDraw(Mat4 const& proj, Mat4 const& view, Vec3 const& eyePos) const;
 			DebugRenderer const& EndDraw() const;
-			DebugRenderer const& DrawOneRigidBody(RigidBody& rb, Float32 frameInterpolation, ColorInfo const& ci) const;
-			DebugRenderer const& HighlightOneRigidBody(RigidBody& rb, Float32 frameInterpolation, ColorInfo const& ci) const;
+			DebugRenderer const& DrawOneRigidBody(RigidBody const& rb, Float32 frameInterpolation, ColorInfo const& ci) const;
+			DebugRenderer const& HighlightOneRigidBody(RigidBody const& rb, Float32 frameInterpolation, ColorInfo const& ci) const;
 			DebugRenderer const& DrawRigidBodies(Float32 frameInterpolation) const;
 			DebugRenderer const& DrawStaticCollisionGeometry() const;
+			DebugRenderer const& DrawOneContactManifold(ContactManifold const& m) const;
+			DebugRenderer const& DrawContactManifolds() const;
 			DebugRenderer const& EnableWireframeMode(Bool val = true) const;
 		};
 
@@ -63,6 +66,9 @@ namespace drb {
 		
 		// Draws a given mesh with additional info (transform and color)
 		void DrawMesh(drb::Mesh const& m, ShaderProgram const& prg, Mat4 const& tr, ColorInfo const& colorInfo);
+
+		// Draws the clipping planes generated from the edges of face
+		void DrawFaceClipPlanes(Convex const& cvx, Uint8 faceIdx, ShaderProgram const& prg, Mat4 const& tr, ColorInfo const& colorInfo);
 		
 		// Creates a render mesh out of a physics::Convex object
 		drb::Mesh MakeRenderMesh(Convex const& cvx);
@@ -72,4 +78,5 @@ namespace drb {
 	}
 }
 
+#include "PhysicsDebugDrawing.inl"
 #endif

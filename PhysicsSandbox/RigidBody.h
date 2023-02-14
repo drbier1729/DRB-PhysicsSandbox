@@ -89,6 +89,8 @@ namespace drb {
 			inline Float32		   GetResitution() const;
 			inline RigidBody::Type GetType() const;
 
+			inline std::shared_ptr<CollisionGeometry const> const GetCollisionGeometry() const;
+
 			// -----------------------------------------------------------------
 			// Manipulators
 			// -----------------------------------------------------------------
@@ -128,9 +130,15 @@ namespace drb {
 			// Helpers
 			// -----------------------------------------------------------------
 			
-			// Called within physics update loop
+			// Called within physics update loop when using XPBD
 			void ProjectPositions(Float32 h);
+
+			// Called within physics update loop -- different versions for 
+			// XPBD and Sequential Impulses
 			void ProjectVelocities(Float32 h);
+
+			// Called within physics update loop when using Sequential Impulses
+			void ProjectForces(Float32 h);
 		};
 		
 		static_assert(sizeof(RigidBody) == 192);

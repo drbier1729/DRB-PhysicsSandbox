@@ -104,6 +104,11 @@ namespace drb {
 			return type;
 		}
 
+		inline std::shared_ptr<CollisionGeometry const> const RigidBody::GetCollisionGeometry() const
+		{
+			return geometry;
+		}
+
 		inline RigidBody& RigidBody::SetPosition(Vec3 const& newPosition)
 		{
 			position = newPosition;

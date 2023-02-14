@@ -179,6 +179,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">pch.h</PrecompiledHeaderFile>
     </ClCompile>
+    <ClCompile Include="GeometryQueryDataStructures.cpp" />
     <ClCompile Include="Math.cpp" />
     <ClCompile Include="PhysicsDebugDrawing.cpp" />
     <ClCompile Include="PhysicsGeometryQueries.cpp" />
@@ -228,6 +229,7 @@
     <ClInclude Include="FrameListener.h" />
     <ClInclude Include="FrameTimer.h" />
     <ClInclude Include="FunctionCaller.h" />
+    <ClInclude Include="GeometryQueryDataStructures.h" />
     <ClInclude Include="Math.h" />
     <ClInclude Include="PhysicsDebugDrawing.h" />
     <ClInclude Include="PhysicsGeometryQueries.h" />
@@ -250,6 +252,8 @@
     <None Include="default.frag" />
     <None Include="default.vert" />
     <None Include="FrameTimer.inl" />
+    <None Include="Mesh.inl" />
+    <None Include="PhysicsDebugDrawing.inl" />
     <None Include="PhysicsGeometry.inl" />
     <None Include="PhysicsGeometryQueries.inl" />
     <None Include="PhysicsWorld.inl" />

@@ -34,6 +34,7 @@ namespace drb {
 		{			
 			// Test all edges (a, b) starting with edge from last to first vertex
 			auto const numVerts = poly.verts.size();
+			ASSERT(numVerts > 0, "poly cannot be empty");
 
 			Vec3 a = poly.verts.back();
 		    auto aSide = ClassifyPointToPlane(a, plane);

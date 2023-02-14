@@ -10,28 +10,21 @@ namespace drb::physics::util {
 	// Helpers
 	// -------------------------------------------------------------------------
 	
-	// Return value for GetSupport___ functions
 	struct CvxSupport
 	{
-		Vec3 pt;
-		Convex::HalfEdge e;
-	};
-
-	// Return value for NearestSimplex
-	struct GJKWorkingPair
-	{
-		Simplex simplex{};
-		Vec3 searchDir{};
+		Vec3 pt{};
+		Convex::VertID v = Convex::INVALID_INDEX;
+		Convex::EdgeID e = Convex::INVALID_INDEX;
 	};
 
 	// If this uses hill climbing, returns the same as GetSupportHillClimbing, else returns a support point
 	// and the "e" field is left defaulted. Start hint is an optional argument specifying where hill climbing
-	// should begin. Note that startHint is assumed to be a valid edge from hull, but this is not checked!
-	static inline CvxSupport GetSupport(Convex const& hull, Vec3 const& dir, Convex::HalfEdge startHint = {});
+	// should begin.
+	static inline CvxSupport GetSupport(Convex const& hull, Vec3 const& dir, Convex::EdgeID startHint = 0);
 
 	// Returns support point in local space and an edge with the support point as its origin. See comment for
 	// "GetSupport" for more details.
-	static inline CvxSupport GetSupportHillClimbing(Convex const& hull, Vec3 const& dir, Convex::HalfEdge startHint);
+	static inline CvxSupport GetSupportHillClimbing(Convex const& hull, Vec3 const& dir, Convex::EdgeID startHint = 0);
 	
 	// Computes the signed distance from plane to the closest point on the hull
 	static inline Float32 Project(const Plane& plane, const Convex& hull);
@@ -43,22 +36,19 @@ namespace drb::physics::util {
 	// convex hulls
 	static inline Bool IsMinkowskiFace(Vec3 const& a, Vec3 const& b, Vec3 const& b_x_a, Vec3 const& c, Vec3 const& d, Vec3 const& d_x_c);
 	
-	// This is the "Distance Subalgorithm" part of GJK -- see "Improving the GJK" by Montanari et al.
-	static inline GJKWorkingPair NearestSimplex(Simplex const& s);
-
 
 	// -------------------------------------------------------------------------
 	// SAT Implementation
 	// -------------------------------------------------------------------------
 
 	// axis pointing from A->B in world space
-	Float32	  SeparationOnAxis(Vec3 const& axis, Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
+	Float32	SeparationOnAxis(Vec3 const& axis, Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
 	{
-		Vec3 const axisLocalA = glm::inverse(trA) * Vec4(axis, 0);
-		Vec3 const axisLocalB = glm::inverse(trB) * Vec4(axis, 0);
+		Vec3 const axisLocalA = glm::inverse(Mat3(trA)) * axis;
+		Vec3 const axisLocalB = glm::inverse(Mat3(trB)) * axis;
 
-		auto [ptA, eA] = GetSupport(A, axisLocalA);
-		auto [ptB, eB] = GetSupport(B, -axisLocalB);
+		auto [ptA, vA, eA] = GetSupport(A, axisLocalA);
+		auto [ptB, vB, eB] = GetSupport(B, -axisLocalB);
 
 		return glm::dot( Vec3(trB * Vec4(ptB, 1) - trA * Vec4(ptA, 1)), axis );
 	}
@@ -137,7 +127,7 @@ namespace drb::physics::util {
 				if (IsMinkowskiFace(uA, vA, -eA, -uB, -vB, -eB))
 				{
 					Vec3 normal{};
-					Float32 const separation = Project(eSegA.b, eA, eSegA.b, eB, cA, normal);
+					Float32 const separation = Project(eSegA.b, eA, eSegB.b, eB, cA, normal);
 					if (separation > result.separation)
 					{
 						result.indexA = i;
@@ -158,27 +148,57 @@ namespace drb::physics::util {
 	// -------------------------------------------------------------------------
 
 	// GJK: Point-Convex
-	Simplex GJK(Vec3 const& A, Convex const& B, Mat4 const& trB,
-		Vec3 const& dir, Simplex const& initialSimplex)
+	ClosestPointsQuery GJK(Vec3 const& A, Convex const& B, Mat4 const& trB, Simplex* seed = nullptr)
 	{
 		ASSERT(false, "Not implemented");
-		return Simplex{};
+		return ClosestPointsQuery{};
+
+		/*
+		// Do this all in local space of B
+		Vec3 const localA = glm::inverse(trB) * Vec4(A, 1);
+
+
+		CvxSupport cvxSupport = GetSupport(B, localA);
+
+		Vec3 pt = cvxSupport.pt - localA;
+
+		GJKWorkingPair current{};
+		current.searchDir = -pt;
+		PushVert(current.simplex, pt);
+
+		while (true)
+		{
+			cvxSupport = GetSupport(B, current.searchDir);
+			pt = cvxSupport.pt - localA;
+			if (glm::dot(pt, current.searchDir) < 0.0f)
+			{
+				return current.simplex;
+			}
+
+			PushVert(current.simplex, pt);
+			current = NearestSimplex(current.simplex);
+			if (current.simplex.containsOrigin) 
+			{
+				return current.simplex;
+			}
+		}
+		*/
 	}
 
 	// GJK: Segment-Convex
-	Simplex GJK(Segment const& A, Convex const& B, Mat4 const& trB,
-		Vec3 const& dir, Simplex const& initialSimplex)
+	ClosestPointsQuery GJK(Segment const& A, Convex const& B, Mat4 const& trB, Simplex* seed = nullptr)
 	{
 		ASSERT(false, "Not implemented");
-		return Simplex{};
+		return ClosestPointsQuery{};
+
+
 	}
 
 	// GJK: Convex-Convex
-	Simplex GJK(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB,
-		Vec3 const& dir, Simplex const& initialSimplex)
+	ClosestPointsQuery GJK(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB, Simplex* seed = nullptr)
 	{
 		ASSERT(false, "Not implemented");
-		return Simplex{};
+		return ClosestPointsQuery{};
 
 
 		//ASSERT(A.verts.size() > 0 && B.verts.size() > 0, "One of the hulls is empty");
@@ -217,46 +237,48 @@ namespace drb::physics::util {
 	// -------------------------------------------------------------------------
 
 	// dir should be in hull's local space
-	static inline CvxSupport GetSupport(Convex const& hull, Vec3 const& dir, Convex::HalfEdge hillClimbingHint) 
+	static inline CvxSupport GetSupport(Convex const& hull, Vec3 const& dir, Convex::EdgeID hillClimbingHint) 
 	{
 		// TODO : Arbitrary threshold... needs to be tested and tuned. Cameron suggests,
 		// "As a rough rule of thumb, this difference becomes measurable at around 10 
 		// vertices per hull, and important at about 20 vertices per hull." (see
 		// S. Cameron 1998 -- Enhanced GJK, and Ericson Ch.9.5.4)
-		static constexpr Uint32 hillClimbingThreshold = 8;
+		static constexpr Uint32 hillClimbingThreshold = 10;
 
 		if (hull.verts.size() > hillClimbingThreshold) 
-		{
-			if (hillClimbingHint.origin == Convex::INVALID_INDEX) { 
-				hillClimbingHint = hull.edges[0]; 
-			}
-			
+		{			
 			return GetSupportHillClimbing(hull, dir, hillClimbingHint);
 		}
 		else
 		{
-			Vec3    bestVert = Vec3(std::numeric_limits<Float32>::lowest());
+			Convex::VertID bestVert = Convex::INVALID_INDEX;
 			Float32 maxProjection = std::numeric_limits<Float32>::lowest();
 
+			Convex::VertID current = 0;
 			for (auto&& v : hull.verts)
 			{
 				Float32 const projection = glm::dot(dir, v);
 				if (projection > maxProjection)
 				{
-					bestVert = v;
+					bestVert = current;
 					maxProjection = projection;
 				}
+
+				++current;
 			}
 
-			return CvxSupport{ .pt = bestVert, .e = Convex::HalfEdge{} };
+			return CvxSupport{ .pt = hull.verts[bestVert], .v = bestVert };
 		}
 	}
 
 
 	// dir should be in hull's local space
-	static inline CvxSupport GetSupportHillClimbing(Convex const& hull, Vec3 const& dir, Convex::HalfEdge e)
+	static inline CvxSupport GetSupportHillClimbing(Convex const& hull, Vec3 const& dir, Convex::EdgeID e)
 	{
-		ASSERT(hull.edges.size() > 0, "Hull is empty");
+		Convex::EdgeID const numEdges = static_cast<Convex::EdgeID>(hull.edges.size());
+
+		ASSERT(numEdges > 0, "Hull is empty");
+		ASSERT(e < numEdges, "Index out of range.");
 
 		// edge = start
 		// while (no neighbors more extreme):
@@ -264,52 +286,53 @@ namespace drb::physics::util {
 		//	-> Move to the neighbor whose projection onto dir is maximal, or exit if none found
 		
 		Float32 maxProj = std::numeric_limits<Float32>::lowest();
-		Uint8 lastVisitedVertex = Convex::INVALID_INDEX;
-		Bool found = true;
+		Convex::VertID lastVisitedVertex = Convex::INVALID_INDEX;
 
-		while (found) 
+		Bool found = true;
+		Convex::EdgeID iterCount = 0; // shouldn't be needed, but used as a safety precaution to avoid infinite loops
+		while(found && iterCount++ < numEdges)
 		{
 			found = false;
 			ForEachOneRingNeighbor(hull, e, [&](Convex::HalfEdge const& neighbor)
-			{
-				if (neighbor.origin != lastVisitedVertex) 
 				{
-					Vec3 const    v = hull.verts[neighbor.origin];
-					Float32 const proj = glm::dot(dir, v);
-
-					if (proj > maxProj)
+					if (neighbor.origin != lastVisitedVertex)
 					{
-						e = neighbor;
-						maxProj = proj;
-						found = true;
-					}
-				}
-			});
+						Vec3 const    v = hull.verts[neighbor.origin];
+						Float32 const proj = glm::dot(dir, v);
 
-			// Document the vertex we just found so we don't check it again
+						if (proj > maxProj)
+						{
+							e = hull.edges[neighbor.twin].twin; // awkward way of extracting the EdgeID of neighbor
+							maxProj = proj;
+							found = true;
+						}
+					}
+				});
+
+			// Record the vertex we just found so we don't check it again
 			// during next iteration -- note that this does not prevent
 			// cycles due to coplanar faces, so we must disallow coplanar
 			// faces during Convex creation.
-			lastVisitedVertex = e.origin;
+			lastVisitedVertex = hull.edges[e].origin;
 		}
 
-		return CvxSupport{ .pt = hull.verts[e.origin], .e = e };
+		// If, on our last iteration, we still found a better vertex, then hill-climbing got 
+		// stuck somewhere -- something was wrong with our hull geometry (possibly coplanar faces).
+		ASSERT(not found, "Hill climbing failed to terminate.");
+
+		return CvxSupport{ 
+			.pt = hull.verts[lastVisitedVertex], 
+			.v = lastVisitedVertex, 
+			.e = e 
+		};
 	}
-
-
-	// TODO : this can be made faster using "Improved GJK" by M. Montanari et al.
-	static inline GJKWorkingPair NearestSimplex(Simplex const& s)
-	{
-		ASSERT(false, "Not implemented");
-		return { Simplex{}, Vec3{} };
-	};
 
 
 	// This function computes the distance between a plane and the hull assuming the plane
 	// is in the local space of the hull
 	static inline Float32 Project(Plane const& plane, Convex const& hull)
 	{
-		auto [support, edge] = GetSupport(hull, -plane.n);
+		auto [support, vID, eID] = GetSupport(hull, -plane.n);
 		return SignedDistance(support, plane);
 	}
 

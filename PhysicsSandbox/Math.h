@@ -70,6 +70,49 @@ namespace drb {
 
 			return normalized;
 		}
+
+		inline Vec3 AnyUnitOrthogonalTo(Vec3 const& src) {
+			Vec3 other{};
+			if (not EpsilonEqual(src.y, 0.0f) ||
+				not EpsilonEqual(src.z, 0.0f)) {
+				other = Vec3(1, 0, 0);
+			}
+			else {
+				other = Vec3(0, 1, 0);
+			}
+			return glm::cross(other, src);
+		}
+		
+		inline Vec3 TripleProduct(Vec3 const& a, Vec3 const& b, Vec3 const& c) {
+			return b * glm::dot(a, c) - c * glm::dot(a, b);
+		}
+
+		inline Mat3 UnitVectorToBasis3(Vec3 const& v) {
+			ASSERT(EpsilonEqual(glm::length2(v), 1.0f), "v must be a unit vector");
+
+			Vec3 const axis1 = AnyUnitOrthogonalTo(v);
+			Vec3 const axis2 = glm::cross(v, axis1);
+
+			return Mat3{
+				v,
+				axis1,
+				axis2
+			};
+		}
+		
+		inline Mat4 UnitVectorToBasis4(Vec3 const& v) {
+			ASSERT(EpsilonEqual(glm::length2(v), 1.0f), "v must be a unit vector");
+
+			Vec3 const axis1 = AnyUnitOrthogonalTo(v);
+			Vec3 const axis2 = glm::cross(v, axis1);
+
+			return Mat4{
+				Vec4(v, 0),
+				Vec4(axis1,0),
+				Vec4(axis2, 0),
+				Vec4(0,0,0,1)
+			};
+		}
 }
 
 #endif

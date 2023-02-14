@@ -49,13 +49,6 @@ namespace drb {
 		{
 			Vec3 p = Vec3(0),		// origin point
 				 d = Vec3(1, 0, 0); // (normalized) direction
-
-			struct CastResult
-			{
-				Vec3    point    = Vec3(std::numeric_limits<Float32>::max());
-				Float32 distance = std::numeric_limits<Float32>::max();
-				Bool	hit      = false;
-			};
 		};
 
 
@@ -106,18 +99,22 @@ namespace drb {
 		// - no coplanar faces
 		struct Convex 
 		{
+			using EdgeID = Uint8;
+			using FaceID = Uint8;
+			using VertID = Uint8;
+
 			struct HalfEdge {
-				Uint8 next = INVALID_INDEX;
-				Uint8 twin = INVALID_INDEX;
-				Uint8 origin = INVALID_INDEX;
-				Uint8 face = INVALID_INDEX;
+				EdgeID next = INVALID_INDEX;
+				EdgeID twin = INVALID_INDEX;
+				VertID origin = INVALID_INDEX;
+				FaceID face = INVALID_INDEX;
 
 				constexpr bool operator==(HalfEdge const&) const = default;
 			};
 
 			struct Face {
-				Uint8 edge = INVALID_INDEX;
-				Plane plane = {};
+				EdgeID edge = INVALID_INDEX;
+				Plane  plane = {};
 
 				constexpr bool operator==(Face const&) const = default;
 			};
@@ -134,10 +131,10 @@ namespace drb {
 		inline Convex  MakeBox(Vec3 const& halfwidths);
 		inline Convex  MakeTetrahedron(Vec3 const& p0, Vec3 const& p1, Vec3 const& p2, Vec3 const& p3); // note that this will shift the points s.t. the centroid is at (0,0,0)
 		inline Mat3    ComputeInertiaTensor(Convex const& hull);
-		inline void    ForEachOneRingNeighbor(Convex const& hull, Convex::HalfEdge const& start, std::invocable<Convex::HalfEdge> auto fn);
-		inline void    ForEachEdgeOfFace(Convex const& hull, Convex::Face const& face, std::invocable<Convex::HalfEdge> auto fn);
+		inline void    ForEachOneRingNeighbor(Convex const& hull, Convex::EdgeID start, std::invocable<Convex::HalfEdge> auto fn);
+		inline void    ForEachEdgeOfFace(Convex const& hull, Convex::FaceID face, std::invocable<Convex::HalfEdge> auto fn);
 		inline AABB    MakeAABB(Convex const& hull, Mat4 const& tr);
-		inline Polygon FaceAsPolygon(Convex const& hull, Mat4 const& tr, Convex::Face const& face);
+		inline Polygon FaceAsPolygon(Convex const& hull, Mat4 const& tr, Convex::FaceID face);
 
 
 		struct Mesh

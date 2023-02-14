@@ -2,6 +2,8 @@
 #include "PhysicsDebugDrawing.h"
 
 #include "PhysicsGeometry.h"
+#include "PhysicsGeometryQueries.h"
+#include "RigidBody.h"
 #include "PhysicsWorld.h"
 #include "Mesh.h"
 #include "Window.h"
@@ -28,7 +30,7 @@ namespace drb {
 				});
 
 			lightColor = { 3.0f, 3.0f, 3.0f };
-			lightDir = { glm::normalize(Vec3(0.5f, 1.0f, 2.0f)) };
+			lightDir = { Normalize(Vec3(0.5f, 1.0f, 2.0f)) };
 
 			// Build render meshes from world
 			world = &world_;
@@ -51,7 +53,7 @@ namespace drb {
 
 			DrawRigidBodies(frameInterpolation);
 			DrawStaticCollisionGeometry();
-			// Draw contact manifolds
+			DrawContactManifolds();
 
 			EndDraw();
 		}
@@ -84,14 +86,14 @@ namespace drb {
 					.specular = { 0.02f, 0.02f, 0.02f },
 					.diffuse = { 0.5f, 0.0f, 0.0f },
 					.gloss = 0.82f,
-					.opacity = 0.7f
+					.opacity = 0.3f
 			};
 
 			static constexpr ColorInfo kinematicColor{
 					.specular = { 0.02f, 0.02f, 0.02f },
 					.diffuse = { 0.0f, 0.0f, 0.5f },
 					.gloss = 0.82f,
-					.opacity = 0.7f
+					.opacity = 0.3f
 			};
 			
 			static constexpr ColorInfo vectorColor{
@@ -112,7 +114,7 @@ namespace drb {
 			return *this;
 		}
 		
-		DebugRenderer const& DebugRenderer::DrawOneRigidBody(RigidBody& rb, Float32 frameInterpolation, ColorInfo const& ci) const
+		DebugRenderer const& DebugRenderer::DrawOneRigidBody(RigidBody const& rb, Float32 frameInterpolation, ColorInfo const& ci) const
 		{
 			Vec3 const interpolatedPos = frameInterpolation * rb.position + (1.0f - frameInterpolation) * rb.prevPosition;
 			Quat const interpolatedRot = frameInterpolation * rb.orientation + (1.0f - frameInterpolation) * rb.prevOrientation;
@@ -145,6 +147,7 @@ namespace drb {
 			}
 
 			for (auto&& h : rb.geometry->hulls) {
+				
 				modelTr = rbTr * h.transform;
 				drb::Mesh::ScopedUse use{ meshes.at(&h.shape) };
 				DrawMesh(use.mesh, shader, modelTr, ci);
@@ -159,7 +162,7 @@ namespace drb {
 		}
 
 
-		DebugRenderer const& DebugRenderer::HighlightOneRigidBody(RigidBody& rb, Float32 frameInterpolation, ColorInfo const& ci) const
+		DebugRenderer const& DebugRenderer::HighlightOneRigidBody(RigidBody const& rb, Float32 frameInterpolation, ColorInfo const& ci) const
 		{
 			Vec3 const interpolatedPos = frameInterpolation * rb.position + (1.0f - frameInterpolation) * rb.prevPosition;
 			Quat const interpolatedRot = frameInterpolation * rb.orientation + (1.0f - frameInterpolation) * rb.prevOrientation;
@@ -189,13 +192,110 @@ namespace drb {
 			return *this;
 		}
 
+		DebugRenderer const& DebugRenderer::DrawContactManifolds() const
+		{
+			static constexpr ColorInfo planeColor{
+					.specular = { 0.02f, 0.02f, 0.02f },
+					.diffuse = { 0.0f, 0.2f, 0.5f },
+					.gloss = 0.82f,
+					.opacity = 0.3f
+			};
+
+			for (auto&& [key, m] : world->contacts) {
+				DrawOneContactManifold(m);
+
+				// TODO : draw clip planes for the reference face and clipped verts of 
+				// incident face
+
+				/*if (key.aShape->type == Convex::type) {
+					auto const* cvx = static_cast<CollisionShape<Convex> const*>(key.aShape);
+					
+					
+
+						if (m.featureA.type == Feature::Type::Face) {
+							Uint8 const f = m.featureA.index;
+
+							Mat4 const tr = key.a->GetTransformMatrix() * cvx->transform;
+							DrawFaceClipPlanes(cvx->shape, f, shader, tr, planeColor);
+						}
+					
+					
+				}
+				
+				if (key.bShape->type == Convex::type) {
+					auto const* cvx = static_cast<CollisionShape<Convex> const*>(key.bShape);
+					
+						if (m.featureB.type == Feature::Type::Face) {
+							Uint8 const f = m.featureB.index;
+
+							Mat4 const tr = key.b->GetTransformMatrix() * cvx->transform;
+							DrawFaceClipPlanes(cvx->shape, f, shader, tr, planeColor);
+						}
+					
+					
+				}*/
+			}
+			return *this;
+		}
+
+		DebugRenderer const& DebugRenderer::DrawOneContactManifold(ContactManifold const& m) const
+		{
+			static constexpr ColorInfo contactColor{
+					.specular = { 0.02f, 0.02f, 0.02f },
+					.diffuse = { 0.9f, 0.9f, 0.0f },
+					.gloss = 0.82f,
+					.opacity = 0.7f
+			};
+			
+			static constexpr ColorInfo planeColor{
+					.specular = { 0.02f, 0.02f, 0.02f },
+					.diffuse = { 0.0f, 0.2f, 0.5f },
+					.gloss = 0.82f,
+					.opacity = 0.3f
+			};
+
+
+			// Draw contact points, and compute center  while we're at it
+			Vec3 manifoldCenter = Vec3(0);
+			{
+				drb::Mesh::ScopedUse use{ drb::Mesh::Cube() };
+
+				for (Uint8 i = 0u; i < m.numContacts; ++i)
+				{
+					manifoldCenter += m.contacts[i].position;
+
+					Mat4 const modelTr = glm::translate(Mat4(1), m.contacts[i].position) *
+										 glm::scale(Mat4(1), Vec3(0.05f));
+					DrawMesh(use.mesh, shader, modelTr, contactColor);
+				}
+				manifoldCenter *= 1.0f / m.numContacts;
+			}
+
+			// Draw normal of separating plane
+			{
+				DrawVector(m.normal, manifoldCenter, shader, contactColor);
+			}
+
+			// Draw separating plane
+			{
+				drb::Mesh::ScopedUse use{ drb::Mesh::Quad() };
+				Mat4 const modelTr = glm::translate(Mat4(1), manifoldCenter)
+					               * UnitVectorToBasis4(m.normal)
+								   * glm::scale(Mat4(1), Vec3(8));
+								   
+				DrawMesh(use.mesh, shader, modelTr, planeColor);
+			}
+
+			return *this;
+		}
+
 		DebugRenderer const& DebugRenderer::DrawStaticCollisionGeometry() const
 		{
 			static constexpr ColorInfo staticColor{
 					.specular = { 0.02f, 0.02f, 0.02f },
 					.diffuse = { 0.0f, 0.5f, 0.0f },
 					.gloss = 0.82f,
-					.opacity = 0.7f
+					.opacity = 0.3f
 			};
 
 			for (auto&& s : world->colliders.spheres) {
@@ -283,6 +383,36 @@ namespace drb {
 				DrawMesh(use.mesh, prg, modelTr, colorInfo);
 			}
 		}
+
+		void DrawFaceClipPlanes(Convex const& cvx, Uint8 faceIdx, ShaderProgram const& prg, Mat4 const& tr, ColorInfo const& colorInfo)
+		{
+			// Draw clip planes
+			ForEachEdgeOfFace(cvx, cvx.faces[faceIdx], [&](Convex::HalfEdge edge) {
+
+					// Create a plane orthogonal to refFace and containing
+					// endpoints of edge
+					Convex::HalfEdge const twin = cvx.edges[edge.twin];
+					Vec3 const p0 = tr * Vec4(cvx.verts[edge.origin], 1);
+					Vec3 const p1 = tr * Vec4(cvx.verts[twin.origin], 1);
+					Vec3 const outwardNormal = Normalize(glm::cross(p1 - p0, cvx.faces[faceIdx].plane.n));
+					Plane const edgePlane = MakePlane(outwardNormal, p0); // normal pointing "outward" away from face center
+
+					// Draw clip plane
+					{
+						drb::Mesh::ScopedUse use{ drb::Mesh::Quad() };
+						Mat4 const clipPlaneTr = glm::translate(Mat4(1), 0.5f * (p1 + p0))
+							* UnitVectorToBasis4(outwardNormal)
+							* glm::scale(Mat4(1), Vec3(8));
+
+						DrawMesh(use.mesh, prg, clipPlaneTr, colorInfo);
+					}
+					// Draw normal of clip plane
+					{
+						DrawVector(outwardNormal, 0.5f * (p1 + p0), prg, colorInfo);
+					}
+			});
+		}
+
 
 		void DrawAABB(AABB const& b, ShaderProgram const& prg, ColorInfo const& colorInfo)
 		{

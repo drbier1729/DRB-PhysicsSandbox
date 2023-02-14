@@ -1,70 +1,105 @@
 #ifndef DRB_SATGJK_H
 #define DRB_SATGJK_H
 
-namespace drb::physics {
-		
-		struct Convex;
-		struct Plane;
-		struct Segment;
-		
-		namespace util {
-		
-			// -----------------------------------------------------------------
-			// Separating Axis Test
-			// -----------------------------------------------------------------
-			struct FaceQuery {
-				Float32 separation = std::numeric_limits<Float32>::lowest();
-				Vec3    normal = Vec3(NAN);
-				Int16   index = -1;
-			};
+#include "PhysicsGeometry.h"
+#include "GeometryQueryDataStructures.h"
 
-			struct EdgeQuery {
-				Float32 separation = std::numeric_limits<Float32>::lowest();
-				Vec3	normal = Vec3(NAN);
-				Int16   indexA = -1;
-				Int16   indexB = -1;
-			};
+namespace drb::physics::util {
 
-			// Note that these need to be called sequentially for the SAT: 
-			//	QueryFace(A, B)
-			//	QueryFace(B, A)
-			//	QueryEdge(A, B)
-			FaceQuery SATQueryFaceDirections(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
-			EdgeQuery SATQueryEdgeDirections(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
-			Float32	  SeparationOnAxis(Vec3 const& axis, Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
+	// -----------------------------------------------------------------
+	// Separating Axis Test
+	// -----------------------------------------------------------------
+	struct FaceQuery {
+		Float32 separation = std::numeric_limits<Float32>::lowest();
+		Vec3    normal = {};
+		Int16   index = -1;
+	};
+
+	struct EdgeQuery {
+		Float32 separation = std::numeric_limits<Float32>::lowest();
+		Vec3	normal = {};
+		Int16   indexA = -1;
+		Int16   indexB = -1;
+	};
+
+	// Note that these need to be called sequentially for the full SAT: 
+	//	QueryFace(A, B)
+	//	QueryFace(B, A)
+	//	QueryEdge(A, B)
+	FaceQuery SATQueryFaceDirections(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
+	EdgeQuery SATQueryEdgeDirections(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
+
+	// This is a check for a single axis -- could have been the cached separating axis
+	// from a previous SAT query. Axis must be in world space and oriented pointing A->B
+	Float32	  SeparationOnAxis(Vec3 const& axis, Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
 
 
-			// -----------------------------------------------------------------
-			// GJK
-			// -----------------------------------------------------------------
-			struct Simplex
-			{
-				enum class Type : Uint8 {
-					NONE = 0,
-					Point = 1,
-					Line = 2,
-					Triangle = 3,
-					Tet = 4
-				};
+	// -----------------------------------------------------------------
+	// GJK
+	// -----------------------------------------------------------------
 
-				Vec3 verts[4] = {};
-				Uint8 size = 0;
-				Bool containsOrigin = false;
+	struct Simplex
+	{
+		enum class Type : Uint8 {
+			NONE = 0,
+			Point = 1,
+			Line = 2,
+			Triangle = 3,
+			Tet = 4
+		};
 
-				inline Type GetType() const;
-			};
+		Vec3 vertsA[4] = {};
+		Vec3 vertsB[4] = {};
 
-			// GJK: Convex-Convex
-			Simplex GJK(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB, Vec3 const& dir, Simplex const& initialSimplex = {});
+		Float32 lambdas[4] = {};
+
+		// Used for hill climbing. Edges give more info
+		// than verts since each edge has an origin vert.
+		Convex::EdgeID edgeIdxsA[4] = {};
+		Convex::EdgeID edgeIdxsB[4] = {};
+		Convex::EdgeID bestA = Convex::INVALID_INDEX, 
+					   bestB = Convex::INVALID_INDEX;
+				
+		Uint8 size = 0;
+
+		inline Type GetType() const;
+		inline void PushVert(Vec3 const& vA, Vec3 const& vB);
+		inline void PushVert(Vec3 const& vA, Convex::EdgeID eIdxA, Vec3 const& vB, Convex::EdgeID eIdxB);
+	};
+
+
+	// A support function takes an object and a given direction (in the local
+	// space of the object) as args, and returns the most extreme point of
+	// the object in that direction.
+	template<class Shape>
+	using SupportFn = std::function<Vec3(Shape const&, Vec3 const&)>;
+
+
+	// For all GJK tests below, an optional parameter "seed" can be passed in to 
+	// accelerate the routine. If seed is not nullptr, then its data will be set by
+	// the function s.t. it can be passed in again on the next call for these
+	// two objects. This is only helpful when at least one object is of type Convex
+	// because it relies on vertex IDs to build a new simplex based on the old
+	// simplex's features.
+
+
+	// General GJK intersection test which can be called for custom shape types.
+	// Returns the distance between shapes A and B. If the result is negative, the 
+	// value is not meaningful except to indicate that the objects are intersecting.
+	template<class ShapeA, class ShapeB>
+	ClosestPointsQuery GJK(ShapeA const& A, Mat4 const& trA, SupportFn<ShapeA> supportFunctionA,
+				            ShapeB const& B, Mat4 const& trB, SupportFn<ShapeB> supportFunctionB,
+							Simplex * seed = nullptr);
 			
-			// GJK: Point-Convex
-			Simplex GJK(Vec3 const& A, Convex const& B, Mat4 const& trB,
-				Vec3 const& dir, Simplex const& initialSimplex = {});
-			
-			// GJK: Segment-Convex
-			Simplex GJK(Segment const& A, Convex const& B, Mat4 const& trB,
-				Vec3 const& dir, Simplex const& initialSimplex = {});
-		}
+	// Specialized GJK: Convex-Convex
+	ClosestPointsQuery GJK(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB, Simplex* seed = nullptr);
+
+	// Specialized GJK: Point-Convex
+	ClosestPointsQuery GJK(Vec3 const& A, Convex const& B, Mat4 const& trB, Simplex* seed = nullptr);
+
+	// Specialized GJK: Segment-Convex
+	ClosestPointsQuery GJK(Segment const& A, Convex const& B, Mat4 const& trB, Simplex* seed = nullptr);
+		
 }
 
 #include "SATGJK.inl"

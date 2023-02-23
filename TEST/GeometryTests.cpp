@@ -2,6 +2,7 @@
 #include "CppUnitTest.h"
 #include "PhysicsSandbox/PhysicsGeometry.h"
 #include "PhysicsSandbox/PhysicsGeometryQueries.h"
+#include "PhysicsSandbox/SATGJK.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -59,6 +60,38 @@ namespace TEST
 				// assert
 				Assert::IsTrue(front.verts.size() == 3 && back.verts.size() == 3, L"Square should have split in two triangles");
 			}
+		}
+
+		TEST_METHOD(GJKPointConvexTest)
+		{
+			using drb::physics::Convex;
+			using drb::Float32;
+			using drb::Vec3;
+			using drb::Mat4;
+			using drb::physics::ClosestPointsQuery;
+			
+			// arrange
+			Convex const hull = drb::physics::MakeBox(Vec3(1));
+			ClosestPointsQuery query{};
+
+			{
+				query = drb::physics::util::GJK(Vec3(0), hull, Mat4(1));
+
+				// assert
+				Assert::IsTrue(query.d2 < 0.0f, L"Intersection not detected");
+			}
+			
+			{
+				Vec3 const pt = Vec3(2, 0.5, 0);
+				query = drb::physics::util::GJK(pt, hull, Mat4(1));
+
+				// assert
+				Float32 const d = glm::sqrt(query.d2);
+				Assert::IsTrue( d < 1.01f && d > 0.99f, L"Incorrect distance value");
+				Assert::IsTrue(drb::EpsilonEqual(query.ptA, pt), L"Incorrect witness point A");
+				Assert::IsTrue(drb::EpsilonEqual(query.ptB, Vec3(1, 0.5, 0)), L"Incorrect witness point B");
+			}
+
 		}
 		
 	};

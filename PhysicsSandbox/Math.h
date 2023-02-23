@@ -6,58 +6,65 @@ namespace drb {
 		inline constexpr Int32 Sign(std::floating_point auto x) { return (x < 0) ? -1 : 1; }
 		inline constexpr Int32 Sign(std::integral auto x) { return (x < 0) ? -1 : 1; }
 
+		inline constexpr Bool CompareSigns(std::floating_point auto x, std::floating_point auto y)
+		{
+			return (x > 0 && y > 0) || (x < 0 && y < 0);
+		}
+
 		// from Realtime Collision Detection by Ericson, Ch.11
-		inline Bool EpsilonEqual(float a, float b)
+		inline Bool EpsilonEqual(float a, float b, float epsilon = std::numeric_limits<float>::epsilon())
 		{
-			static constexpr float epsilon = std::numeric_limits<float>::epsilon();
-
-			return std::fabs(a - b) <= std::max({ std::fabs(a), std::fabs(b), 1.0f }) * std::sqrtf(epsilon);
+			return glm::abs(a - b) <= std::max({ glm::abs(a), glm::abs(b), 1.0f }) * glm::sqrt(epsilon);
 		}
 		
-		inline Bool EpsilonEqual(double a, double b)
+		inline Bool EpsilonEqual(double a, double b, double epsilon = std::numeric_limits<double>::epsilon())
 		{
-			static constexpr double epsilon = std::numeric_limits<double>::epsilon();
-
-			return std::fabs(a - b) <= std::max({ std::fabs(a), std::fabs(b), 1.0 }) * std::sqrt(epsilon);
+			return glm::abs(a - b) <= std::max({ glm::abs(a), glm::abs(b), 1.0 }) * glm::sqrt(epsilon);
 		}
 
-		inline Bool EpsilonEqual(Vec3 const& a, Vec3 const& b)
+		inline Bool EpsilonEqual(Vec3 const& a, Vec3 const& b, float epsilon = std::numeric_limits<float>::epsilon())
 		{
-			return EpsilonEqual(a.x, b.x) &&
-				EpsilonEqual(a.y, b.y) &&
-				EpsilonEqual(a.z, b.z);
+			return EpsilonEqual(a.x, b.x, epsilon) &&
+				   EpsilonEqual(a.y, b.y, epsilon) &&
+				   EpsilonEqual(a.z, b.z, epsilon);
 		}
 
-		inline Bool EpsilonEqual(Vec4 const& a, Vec4 const& b)
+		inline Bool EpsilonEqual(Vec4 const& a, Vec4 const& b, float epsilon = std::numeric_limits<float>::epsilon())
 		{
-			return EpsilonEqual(a.x, b.x) &&
-				EpsilonEqual(a.y, b.y) &&
-				EpsilonEqual(a.z, b.z) &&
-				EpsilonEqual(a.w, b.w);
+			return EpsilonEqual(a.x, b.x, epsilon) &&
+				   EpsilonEqual(a.y, b.y, epsilon) &&
+				   EpsilonEqual(a.z, b.z, epsilon) &&
+				   EpsilonEqual(a.w, b.w, epsilon);
 		}
 		
-		inline Bool EpsilonEqual(Quat const& a, Quat const& b)
+		inline Bool EpsilonEqual(Quat const& a, Quat const& b, float epsilon = std::numeric_limits<float>::epsilon())
 		{
-			return EpsilonEqual(a.x, b.x) &&
-				EpsilonEqual(a.y, b.y) &&
-				EpsilonEqual(a.z, b.z) &&
-				EpsilonEqual(a.w, b.w);
+			return EpsilonEqual(a.x, b.x, epsilon) &&
+				   EpsilonEqual(a.y, b.y, epsilon) &&
+				   EpsilonEqual(a.z, b.z, epsilon) &&
+				   EpsilonEqual(a.w, b.w, epsilon);
 		}
 
 		inline Vec3 Normalize(Vec3 const& v) {
-			if (EpsilonEqual(v, Vec3(0))) {
-				ASSERT(false, "Tried to normalize a zero vector.");
-				return Vec3(0);
+			Vec3 const normalized = glm::normalize(v);
+
+			if (glm::any(glm::isnan(normalized)))
+			{
+				ASSERT(false, "Tried to normalize a zero vector");
+				return Vec4(0);
 			}
-			return glm::normalize(v);
+			return normalized;
 		}
 		
 		inline Vec4 Normalize(Vec4 const& v) {
-			if (EpsilonEqual(v, Vec4(0))) {
-				ASSERT(false, "Tried to normalize a zero vector.");
+			Vec4 const normalized = glm::normalize(v);
+
+			if (glm::any(glm::isnan(normalized)))
+			{
+				ASSERT(false, "Tried to normalize a zero vector");
 				return Vec4(0);
 			}
-			return glm::normalize(v);
+			return normalized;
 		}
 		
 		inline Quat Normalize(Quat const& q) {
@@ -71,7 +78,7 @@ namespace drb {
 			return normalized;
 		}
 
-		inline Vec3 AnyUnitOrthogonalTo(Vec3 const& src) {
+		inline Vec3 AnyUnitOrthogonalTo(Vec3 const& src) {	
 			Vec3 other{};
 			if (not EpsilonEqual(src.y, 0.0f) ||
 				not EpsilonEqual(src.z, 0.0f)) {
@@ -83,6 +90,7 @@ namespace drb {
 			return glm::cross(other, src);
 		}
 		
+		// Performs a x (b x c)
 		inline Vec3 TripleProduct(Vec3 const& a, Vec3 const& b, Vec3 const& c) {
 			return b * glm::dot(a, c) - c * glm::dot(a, b);
 		}

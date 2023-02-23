@@ -32,9 +32,10 @@ namespace drb {
 		// TODO : verify that this maintains ordering of original poly (i.e. counterclockwise)
 		void SplitPolygon(Polygon const& poly, Plane const& plane, Polygon& front, Polygon& back)
 		{			
+			if (poly.verts.empty()) { return; }
+
 			// Test all edges (a, b) starting with edge from last to first vertex
 			auto const numVerts = poly.verts.size();
-			ASSERT(numVerts > 0, "poly cannot be empty");
 
 			Vec3 a = poly.verts.back();
 		    auto aSide = ClassifyPointToPlane(a, plane);
@@ -154,6 +155,21 @@ namespace drb {
 				I += util::InertiaTensorAboutOrigin(h);
 			}
 			invInertia = glm::inverse(I);
+
+			// Compute bounds
+			AABB tmp = {};
+			for (auto&& s : spheres) {
+				tmp = MakeAABB(s.shape, s.transform);
+				bounds.Union(tmp);
+			}
+			for (auto&& c : capsules) {
+				tmp = MakeAABB(c.shape, c.transform);
+				bounds.Union(tmp);
+			}
+			for (auto&& h : hulls) {
+				tmp = MakeAABB(h.shape, h.transform);
+				bounds.Union(tmp);
+			}
 		}			
 	}
 }

@@ -38,20 +38,22 @@ namespace drb::physics::util {
 	// GJK
 	// -----------------------------------------------------------------
 
+	// Should be private to GJK algorithm but can be cached. Don't call any of the member
+	// functions outside GJK computations
 	struct Simplex
 	{
 		enum class Type : Uint8 {
 			NONE = 0,
-			Point = 1,
-			Line = 2,
-			Triangle = 3,
+			Pnt = 1,
+			Seg = 2,
+			Tri = 3,
 			Tet = 4
 		};
 
-		Vec3 vertsA[4] = {};
-		Vec3 vertsB[4] = {};
+		Vec3 vertsA[4] = {};   // world space positions of simplex points on A
+		Vec3 vertsB[4] = {};   // world space positions of simplex points on B
 
-		Float32 lambdas[4] = {};
+		Vec4 lambdas = {};
 
 		// Used for hill climbing. Edges give more info
 		// than verts since each edge has an origin vert.
@@ -61,10 +63,12 @@ namespace drb::physics::util {
 					   bestB = Convex::INVALID_INDEX;
 				
 		Uint8 size = 0;
+		Bool  containsOrigin = false;
 
 		inline Type GetType() const;
-		inline void PushVert(Vec3 const& vA, Vec3 const& vB);
 		inline void PushVert(Vec3 const& vA, Convex::EdgeID eIdxA, Vec3 const& vB, Convex::EdgeID eIdxB);
+		inline void ExtractWitnessPoints(Vec3& witnessA, Vec3& witnessB) const;
+		void ComputeBarycentricCoords(Vec3 const& disp);
 	};
 
 

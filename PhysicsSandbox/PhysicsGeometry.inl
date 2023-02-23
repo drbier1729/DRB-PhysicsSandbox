@@ -141,7 +141,7 @@ namespace drb {
 		inline Convex MakeBox(Vec3 const& halfwidths) {
 
 			return Convex{
-				.bounds = AABB{.min = -halfwidths, .max = halfwidths},
+				.bounds = AABB{.max = halfwidths, .min = -halfwidths},
 
 				.verts = {
 						Vec3{ -halfwidths.x, -halfwidths.y,  halfwidths.z }, // 0
@@ -153,6 +153,17 @@ namespace drb {
 						Vec3{  halfwidths.x,  halfwidths.y, -halfwidths.z }, // 6
 						Vec3{ -halfwidths.x,  halfwidths.y, -halfwidths.z }  // 7
 					},
+
+				.vertAdj = {
+					0,
+					1,
+					3,
+					5,
+					9,
+					11,
+					20,
+					15
+				},
 
 				.edges = {
 						{.next = 2, .twin = 1, .origin = 0, .face = 0}, //  0
@@ -223,12 +234,19 @@ namespace drb {
 			return Convex{
 
 				.bounds = { 
-					.min = glm::min(p0, glm::min(p1, glm::min(p2, p3))), 
-					.max = glm::max(p0, glm::max(p1, glm::max(p2, p3))) 
+					.max = glm::max(p0, glm::max(p1, glm::max(p2, p3))),
+					.min = glm::min(p0, glm::min(p1, glm::min(p2, p3))) 
 				},
 
 				.verts = { p0, p1, p2, p3},
 				
+				.vertAdj = {
+					0,
+					1,
+					3,
+					4
+				},
+
 				.edges = {
 					{.next = 2, .twin = 1, .origin = 0, .face = 0}, //  0
 					{.next = 9, .twin = 0, .origin = 1, .face = 2}, //  1
@@ -262,14 +280,14 @@ namespace drb {
 		{
 			Vec3 const center = tr[3];
 			Vec3 const halfwidths = Vec3(sph.r);
-			return AABB{ .min = center - halfwidths, .max = center + halfwidths };
+			return AABB{ .max = center + halfwidths, .min = center - halfwidths };
 		}
 
 		inline AABB MakeAABB(Capsule const& cap, Mat4 const& tr)
 		{
 			AABB boundsLocal{
-				.min = { -cap.r, -cap.h - cap.r, -cap.r },
-				.max = { cap.r, cap.h + cap.r, cap.r }
+				.max = { cap.r, cap.h + cap.r, cap.r },
+				.min = { -cap.r, -cap.h - cap.r, -cap.r }
 			};
 
 			Mat3 const rot = Mat3(tr);

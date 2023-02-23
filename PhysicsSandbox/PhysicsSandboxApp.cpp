@@ -220,7 +220,7 @@ namespace drb {
 			
 			// Draw inspector
 			inspector::BeginDraw();
-			if (mSelected != &mDummy) { inspector::DisplayRigidBodyInfo(*mSelected); }
+			inspector::DisplayRigidBodyInfo(*mSelected);
 			inspector::DisplayFrameInfo(1.0f / dt, currentStep);
 			inspector::FinishDraw();
 			
@@ -398,7 +398,7 @@ namespace drb {
 			}
 
 			ImGui::Text("FPS: %.0f", lastFPS);
-			ImGui::Text("Sim Step: %ll", frameCount);
+			ImGui::Text("Sim Step: %d", frameCount);
 
 			ImGui::End();
 		}

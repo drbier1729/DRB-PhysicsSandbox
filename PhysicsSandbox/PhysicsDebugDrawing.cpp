@@ -387,7 +387,7 @@ namespace drb {
 		void DrawFaceClipPlanes(Convex const& cvx, Uint8 faceIdx, ShaderProgram const& prg, Mat4 const& tr, ColorInfo const& colorInfo)
 		{
 			// Draw clip planes
-			ForEachEdgeOfFace(cvx, cvx.faces[faceIdx], [&](Convex::HalfEdge edge) {
+			ForEachEdgeOfFace(cvx, faceIdx, [&](Convex::HalfEdge edge) {
 
 					// Create a plane orthogonal to refFace and containing
 					// endpoints of edge

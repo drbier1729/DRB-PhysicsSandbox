@@ -156,6 +156,10 @@ namespace drb {
 
 					colliders.ForEachCollider([&]<Shape U>(CollisionShape<U> const& B) {
 
+						// TODO : do midphase pre-checks
+						// - check for AABB intersection
+						// - check cached Axis or Simplex
+
 						ContactManifold const m = Collide(A.shape, shapeTrA, B.shape, B.transform);
 						ManifoldKey const key(&bodies[i], &A, &worldBody, &B);
 

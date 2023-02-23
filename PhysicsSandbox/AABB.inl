@@ -14,15 +14,15 @@ namespace drb {
 		inline AABB AABB::Union(AABB const& other) const
 		{
 			return AABB{ 
-				.min = glm::min(min, other.min), 
-				.max = glm::max(max, other.max) 
+				.max = glm::max(max, other.max),
+				.min = glm::min(min, other.min)
 			};
 		}
 
 		// See Realtime Collision Detection by Ericson, Ch 4
 		inline AABB AABB::Transformed(Mat3 const& orientation, Vec3 const& pos) const
 		{
-			AABB result{ .min = pos, .max = pos };
+			AABB result{ .max = pos, .min = pos };
 
 			// Form extents by summing smaller and larger terms respectively
 			for (auto i = 0; i < 3; i++) {
@@ -55,6 +55,13 @@ namespace drb {
 		inline Vec3 AABB::Halfwidths() const
 		{
 			return 0.5f * (max - min);
+		}
+
+
+		inline Float32 AABB::SurfaceArea() const
+		{
+			Vec3 const d = max - min;
+			return 2.0f * (d.x * d.y + d.y * d.z + d.z * d.x);
 		}
 	}
 }

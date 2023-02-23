@@ -120,6 +120,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <GenerateSourceDependencies>true</GenerateSourceDependencies>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -166,6 +167,7 @@
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="DynamicBVH.cpp" />
     <ClCompile Include="FrameListener.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">pch.h</PrecompiledHeaderFile>
@@ -226,6 +228,7 @@
     <ClInclude Include="Application.h" />
     <ClInclude Include="BreakableScope.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="DynamicBVH.h" />
     <ClInclude Include="FrameListener.h" />
     <ClInclude Include="FrameTimer.h" />
     <ClInclude Include="FunctionCaller.h" />

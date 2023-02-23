@@ -77,9 +77,9 @@ namespace drb::physics {
 
 
 	struct ClosestPointsQuery {
-		Vec3 ptA = Vec3(NAN);							  // pt on shape a in world space
-		Vec3 ptB = Vec3(NAN);							  // pt on shape b in world space
-		Float32 d2 = std::numeric_limits<Float32>::max(); // sqr distance
+		Vec3    ptA = Vec3(NAN);						  // pt on shape a in world space
+		Vec3    ptB = Vec3(NAN);						  // pt on shape b in world space
+		Float32 d2 = std::numeric_limits<Float32>::max(); // sqr distance.  (d2 < 0)  -->  A and B intersecting
 	};
 
 
@@ -93,8 +93,8 @@ namespace drb::physics {
 
 	struct RayCastHit
 	{
-		CastResult info = {};
-		RigidBody* body = nullptr;
+		CastResult                 info = {};
+		RigidBody*                 body = nullptr;
 		CollisionShapeBase const* shape = nullptr;
 	};
 }

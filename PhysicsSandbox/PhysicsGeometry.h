@@ -103,6 +103,7 @@ namespace drb {
 			using FaceID = Uint8;
 			using VertID = Uint8;
 
+
 			struct HalfEdge {
 				EdgeID next = INVALID_INDEX;
 				EdgeID twin = INVALID_INDEX;
@@ -121,6 +122,7 @@ namespace drb {
 
 			AABB					 bounds{};   // AABB in local space -- used to quickly recompute AABB/OBB in world space
 			std::vector<Vec3>		 verts{};    // in local space
+			std::vector<EdgeID>		 vertAdj{};  // parallel with verts -- stores the index of one edge which originates at vert
 			std::vector<HalfEdge>	 edges{};    // stored s.t. each edge is adjacent to its twin
 			std::vector<Face>		 faces{};
 
@@ -176,16 +178,17 @@ namespace drb {
 			Mat3								 invInertia = Mat3(1);
 			Float32                              invMass    = 1.0f;
 			Vec3								 com        = {};
+			AABB								 bounds     = {};
 
 			// -----------------------------------------------------------------
 			// Setup Methods
 			// -----------------------------------------------------------------
 
-			// must be called by user after all colliders have been added. computes 
-			// the mass, center of mass, and local inertia tensor. This will also
-			// set the local position of each collider such that the center of 
-			// mass of the body is at the origin, but saves the coords of the COM
-			// in the original model space.
+			// Must be called by user after all colliders have been added. Computes 
+			// the mass, center of mass, and local inertia tensor, plus a local space
+			// bounding box. This will also set the local position of each collider 
+			// such that the center of mass of the body is at the origin, but saves 
+			// the coords of the COM in the original model space.
 			void Bake();
 
 			template<Shape T>

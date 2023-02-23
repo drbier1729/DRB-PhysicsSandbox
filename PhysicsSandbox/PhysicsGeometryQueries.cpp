@@ -7,12 +7,8 @@
 //#define COLLIDE_FCN_NOT_IMPLEMENTED ASSERT(false, "Not yet implemented."); return ContactManifold{};
 #define COLLIDE_FCN_NOT_IMPLEMENTED return ContactManifold{};
 
-// FOR DEBUGGING
 
-
-
-namespace drb {
-	namespace physics {
+namespace drb::physics {
 
 		namespace util {
 
@@ -21,11 +17,19 @@ namespace drb {
 			// -----------------------------------------------------------------
 
 			// Returns closest point (in world space) on segment ls to point pt
-			static inline Vec3               ClosestPoint(Vec3 const& pt, Segment const& ls);
+			// Parameter "t" is stored in the 4th(w) coord of result, which allows
+			// easy checking for if the result is an endpoint of ls.
+			static inline Vec4               ClosestPoint(Vec3 const& pt, Segment const& ls);
 
 			// Similar to above, but returns the point on the line (not segment!) defined by
-			// the two points given by ls
-			static inline Vec3               ClosestPointOnLine(Vec3 const& pt, Segment const& ls);
+			// the two points given by ls. Note the length of the direction vector will be used 
+			// to parameterize the result point and will affect "t".
+			static inline Vec4               ClosestPointOnLine(Vec3 const& pt, Segment const& ls);
+
+			// Same as above, but representing a line as a point and direction vector (with
+			// length > 0). Note the length of the direction vector will be used to parameterize
+			// the result point and will affect "t".
+			static inline Vec4				 ClosestPointOnLine(Vec3 const& pt, Vec3 const& lineDir, Vec3 const& linePt);
 
 			// Returns closest points (in world space) on each segment to the other segment, and the
 			// square distance between them
@@ -48,6 +52,11 @@ namespace drb {
 			// Converts a polygon to a contact manifold the uses the best 4 (or fewer) points
 			// This has a side effect of projecting incFacePoly onto refFacePlane
 			static		  ContactManifold    ReduceContactSet(Polygon& incFacePoly, Plane const& refFacePlane, Mat4 const& refTr);
+
+			// The actual computation of the collision -- useful because internally we often have the center of the sphere
+			// and do not want to convert a point to a matrix only to convert back to a point again
+			static inline ContactManifold	 CollideSphereSphereImpl(Sphere const& A, Vec3 const& cA, Sphere const& B, Vec3 const& cB);
+			static inline ContactManifold    CollideSphereCapImpl(Sphere const& A, Vec3 const& cA, Capsule const& B, Mat4 const& trB);
 		}
 
 
@@ -74,46 +83,13 @@ namespace drb {
 
 		ContactManifold Collide(Sphere const& A, Mat4 const& trA, Sphere const& B, Mat4 const& trB)
 		{
-			ContactManifold result{};
-
-			Vec3 const posA = trA[3];
-			Vec3 const posB = trB[3];
-
-			Float32 const dist = glm::distance(posA, posB);
-			if (dist < 0.0001f) {
-				return result;
-			}
-
-			Float32 const pen = (A.r + B.r) - dist;
-			if (pen > 0.0f) {
-
-				result.normal = (posB - posA) / dist;
-
-				result.contacts[result.numContacts++] = Contact{
-					// contact position is halfway between the surface points of two spheres
-					.position = result.normal * (A.r - 0.5f * pen) + posA,
-					.penetration = pen,
-				};
-			}
-
-			return result;
+			return util::CollideSphereSphereImpl(A, trA[3], B, trB[3]);
 		}
 
 
 		ContactManifold Collide(Sphere const& A, Mat4 const& trA, Capsule const& B, Mat4 const& trB)
 		{
-			Vec3 const posA = trA[3];
-			Segment const segB = CentralSegment(B, trB);
-
-			// Closest point to a on internal line segment of b
-			Vec3 const p = util::ClosestPoint(posA, segB);
-
-			// Construct a sphere on the fly, centered at the closest point to sphere A 
-			// on central segment of capsule B with radius of capsule B
-			Sphere const S{ B.r };
-			Mat4 const trS = glm::translate(Mat4(1), p);
-
-			return Collide(A, trA, S, trS);
+			return util::CollideSphereCapImpl(A, trA[3], B, trB);
 		}
 
 
@@ -139,6 +115,8 @@ namespace drb {
 
 		ContactManifold Collide(Capsule const& A, Mat4 const& trA, Capsule const& B, Mat4 const& trB)
 		{
+			static constexpr Float32 tol = 1.0e-12f;
+
 			Segment const segA = CentralSegment(A, trA);
 			Segment segB = CentralSegment(B, trB); // not const b/c may swap b with e later
 
@@ -147,129 +125,97 @@ namespace drb {
 			Float32 const mag2A = glm::length2(vecA);
 			Float32 const mag2B = glm::length2(vecB);
 
-			// Check for capsules deteriorating to spheres. If they do,
+			// Check for capsules degenerating to spheres. If they do,
 			// we can just do a sphere-sphere or sphere-capsule collision.
-			Bool const AisSphere = mag2A < 0.0001f;
-			Bool const BisSphere = mag2B < 0.0001f;
+			Bool const AisSphere = mag2A < tol;
+			Bool const BisSphere = mag2B < tol;
 			if (AisSphere)
 			{
 				Sphere const sA{ A.r };
-				Mat4 const trSA = glm::translate(Mat4(1), segA.b);
-
 				if (BisSphere) // Both spheres
 				{
 					Sphere const sB{ B.r };
-					Mat4   const trSB = glm::translate(Mat4(1), segB.b);
-					return Collide(sA, trSA, sB, trSB);
+					return util::CollideSphereSphereImpl(sA, segA.b, sB, segB.b);
 				}
 
 				// Else: only A is a sphere
-				return Collide(sA, trSA, B, trB);
+				return util::CollideSphereCapImpl(sA, segA.b, B, trB);
 			}
 			else if (BisSphere)
 			{
 				Sphere const sB{ B.r };
-				Mat4   const trSB = glm::translate(Mat4(1), segB.b);
-				return Collide(A, trA, sB, trSB);
+				ContactManifold m = util::CollideSphereCapImpl(sB, segB.b, A, trA);
+				util::Flip(m);
+				return m;
 			}
-			
+			// Else: neither capsule is degenerate
+		
+
 			// Detect parallel capsules
-			static constexpr Float32 parallelThreshold = 0.01f;
 			Float32 const AdotB = glm::dot(vecA, vecB);
-			Bool const parallel = std::abs(AdotB * AdotB - mag2A * mag2B) < parallelThreshold;
-			
+			Bool const parallel = glm::abs(AdotB * AdotB - mag2A * mag2B) < tol;
+
 			if (not parallel)
 			{
+				// Find closest points on central segments of each capsule
 				auto const [pA, pB, d2] = util::ClosestPointsNonDegenerate(segA, segB, vecA, vecB, mag2A, mag2B);
-
 				if (d2 > (A.r + B.r) * (A.r + B.r)) {
 					return ContactManifold{
-						.normal = EpsilonEqual(d2, 0.0f) ? Vec3(1,0,0) : (pB - pA) / glm::sqrt(d2)
+						.normal = EpsilonEqual(d2, 0.0f, tol) ? Vec3(1,0,0) : (pB - pA) / glm::sqrt(d2)
 					};
 				}
 
 				// Construct two spheres on the fly centered at closest points between
 				// central segments and with radii equal to that of the capsules
 				Sphere const sA{ A.r }, sB{ B.r };
-				Mat4   const trSA = glm::translate(Mat4(1), pA), trSB = glm::translate(Mat4(1), pB);
-			
-				return Collide(sA, trSA, sB, trSB);
+				return util::CollideSphereSphereImpl(sA, pA, sB, pB);
 			}
-			else
+			// Else: capsules are parallel
+			
+			// Need to find two contact points, clipping the central
+			// segments against each other. To do this, first we'll
+			// project beginning of segB onto the line defined by segA.
+			Vec4 const pLineA0 = util::ClosestPointOnLine(segB.b, vecA, segA.b);
+			
+			// To clip this point, we'll clamp the "t" param from
+			// the above computation, then use this to compute 
+			// the point on segA
+			Float32 const t0 = glm::clamp(pLineA0.w, 0.0f, 1.0f);
+			Vec3 const pA0 = vecA * t0 + segA.b;
+			
+			// For the other point, we'll just handle the clamping directly
+			// within the utility function
+			Vec4 const pA1 = util::ClosestPoint(segB.e, segA);
+
+			// Test if we've clipped down to a single endpoint
+			if (EpsilonEqual(t0, pA1.w, tol))
 			{
-				// Test Axis 1: direction from line A toward line B
-				Vec3 const axis1 = util::ClosestPointOnLine(segA.b, segB) - segA.b;
-				Float32 const overlap1 = glm::length(axis1);
-				
-				if (overlap1 > (A.r + B.r))
-				{
-					// no collision
-					return ContactManifold{
-						.normal = axis1 / overlap1
-					};
-				}
+				// Do sphere capsule collision
+				Sphere const sA{ A.r };
+				return util::CollideSphereCapImpl(sA, pA0, B, trB);
+			}
+			// Else: we actually do have 2 points
 
-				// Test Axis 2: direction of either segment
-				Vec3 const axis2 = vecA / std::sqrt(mag2A);
+			// The axis of collision MUST be orthogonal to both capsule 
+			// segments and can be trivially obtained from our line proj
+			Vec3 const axis = segB.b - Vec3(pLineA0);
+			Float32 const d2 = glm::length2(axis);
 
-				// Orient both segments in the same direction
-				if (AdotB < 0.0f) { std::swap(segB.b, segB.e); }
+			// Check for overlapping segments
+			if (EpsilonEqual(d2, 0.0f, tol))
+			{
+				return ContactManifold{
+					.normal = Vec3(1,0,0)
+				};
+			}
 
-				// Compute overlap and figure out which segment is 
-				// futher along on axis 2 
-				Vec3 const endBtoStartA = segA.b - segB.e;
-				Vec3 const endAtoStartB = segB.b - segA.e;
-				
-				Bool    useBtoA  = true;
-				Float32 overlap2 = glm::dot(axis2, endBtoStartA);
-				
-				if (Float32 const AtoBProj = glm::dot(axis2, endAtoStartB); AtoBProj > overlap2)
-				{
-					overlap2 = AtoBProj;
-					useBtoA = false;
-				}
-
-				// Check for collision on axis 2
-				if (overlap2 > A.r + B.r) 
-				{
-					// no collision
-					return ContactManifold{
-						.normal = axis2
-					};
-				}
-				else if (overlap2 > 0.0f) 
-				{
-					// Generate 1 contact (collision on end spheres)
-					Vec3 const& posA = useBtoA ? segA.b : segA.e;
-					Vec3 const& posB = useBtoA ? segB.e : segB.b;
-					Float32 const dist = glm::distance(posA, posB);
-					Float32 const pen = A.r + B.r - dist;
-					Vec3 const normal = (posB - posA) / dist;
-
-					return ContactManifold{
-						.contacts = {
-							Contact{
-								.position = normal * (A.r - 0.5f * pen) + posA,
-								.penetration = pen
-							}
-						},
-						.numContacts = 1,
-						.normal = normal
-					};
-				}
-				
-				// Else: projected line segs overlap on axis 2, so 
-				// generate 2 contacts (collision on central cylinders)
-
-				// Implicitly clip segB to segA
-				Vec3 const pA0 = util::ClosestPoint(segB.b, segA);
-				Vec3 const pA1 = util::ClosestPoint(segB.e, segA);
-
-				// We can reuse the computed overlap on Axis 1 since this is
-				// guaranteed to be our axis of penetration
-				Float32 const pen = A.r + B.r - overlap1;
-				Vec3 const normal = axis1 / overlap1;
-
+			// Check for collision
+			Float32 const dist = glm::sqrt(d2);
+			Vec3 const normal = axis / dist;
+			Float32 const pen = A.r + B.r - dist;
+			if (pen > 0.0f)
+			{
+				// Collision!
 				return ContactManifold{
 					.contacts = {
 						Contact{
@@ -277,14 +223,19 @@ namespace drb {
 							.penetration = pen
 						},
 						Contact{
-							.position = normal * (A.r - 0.5f * pen) + pA1,
+							.position = normal * (A.r - 0.5f * pen) + Vec3(pA1),
 							.penetration = pen
-						}				
+						}
 					},
 					.numContacts = 2,
 					.normal = normal
 				};
 			}
+			// Else: no collision
+			
+			return ContactManifold{
+				.normal = normal
+			};
 		}
 
 
@@ -453,9 +404,9 @@ namespace drb {
 
 		namespace util {
 
-			static inline Vec3 ClosestPoint(Vec3 const& pt, Segment const& ls) {
+			static inline Vec4 ClosestPoint(Vec3 const& pt, Segment const& ls) {
 				Vec3 const s = ls.e - ls.b;
-				ASSERT(glm::length2(s) > 0.0001f, "Line segment is poorly defined. Start == End.");
+				ASSERT(glm::length2(s) > 1.0e-12f, "Line segment is poorly defined. Start == End.");
 
 				// Project pt onto ls, computing parameterized position d(t) = start + t*(end - start)
 				Float32 t = glm::dot(pt - ls.b, s) / glm::length2(s);
@@ -464,24 +415,32 @@ namespace drb {
 				t = glm::clamp(t, 0.0f, 1.0f);
 
 				// Compute projected position from the clamped t
-				return ls.b + t * s;
+				return { ls.b + t * s, t };
 			}
 			
-			static inline Vec3 ClosestPointOnLine(Vec3 const& pt, Segment const& ls) {
+			static inline Vec4 ClosestPointOnLine(Vec3 const& pt, Segment const& ls) {
 				Vec3 const s = ls.e - ls.b;
-				ASSERT(glm::length2(s) > 0.0001f, "Line segment is poorly defined. Start == End.");
+				ASSERT(glm::length2(s) > 1.0e-12f, "Line segment is poorly defined. Start == End.");
+
+				return ClosestPointOnLine(pt, s, ls.b);
+			}
+			
+			static inline Vec4 ClosestPointOnLine(Vec3 const& pt, Vec3 const& lineDir, Vec3 const& linePt) {
+				ASSERT(glm::length2(lineDir) > 1.0e-12f, "Line is poorly defined. Start == End.");
 
 				// Project pt onto ls, computing parameterized position d(t) = start + t*(end - start)
-				Float32 t = glm::dot(pt - ls.b, s) / glm::length2(s);
-
+				Float32 const t = glm::dot(pt - linePt, lineDir) / glm::length2(lineDir);
+				
 				// Compute projected position from the clamped t
-				return ls.b + t * s;
+				return { linePt + t * lineDir, t };
 			}
 
 
 			// See Ericson Realtime Collision Detection Ch 5.1.9
 			static ClosestPointsQuery ClosestPoints(Segment const& A, Segment const& B)
 			{
+				static constexpr Float32 tol = 1.0e-4f;
+
 				Vec3 const dA = A.e - A.b; // Direction vector of segment a
 				Vec3 const dB = B.e - B.b; // Direction vector of segment b
 				Vec3 const r = A.b - B.b;
@@ -492,18 +451,18 @@ namespace drb {
 				Float32 t{}, s{};
 
 				// Check if either or both segments degenerate into points
-				if (LA <= 0.0001f && LB <= 0.0001f) {
+				if (LA <= tol && LB <= tol) {
 					// Both segments degenerate into points
 					return ClosestPointsQuery{ A.b, B.b, glm::distance2(A.b, B.b) };
 				}
-				if (LA <= 0.0001f) {
+				if (LA <= tol) {
 					// First segment degenerates into a point
 					t = f / LB;
 					t = glm::clamp(t, 0.0f, 1.0f);
 				}
 				else {
 					Float32 c = glm::dot(dA, r);
-					if (LB <= 0.0001f) {
+					if (LB <= tol) {
 						// Second segment degenerates into a point
 						t = 0.0f;
 						s = glm::clamp(-c / LA, 0.0f, 1.0f);
@@ -593,8 +552,9 @@ namespace drb {
 			static ContactManifold GenerateFaceContact(FaceQuery const& fq, Convex const& reference, Mat4 const& refTr, Convex const& incident, Mat4 const& incTr)
 			{
 				Mat4 const incToRefLocal = glm::inverse(refTr) * incTr;
-
-				Convex::FaceID const refFaceIdx = fq.index;
+				
+				ASSERT(fq.index >= 0 && fq.index <= Convex::MAX_EDGES, "Invalid index");
+				Convex::FaceID const refFaceIdx = static_cast<Convex::FaceID>(fq.index);
 				Convex::Face const& refFace = reference.faces[refFaceIdx];
 				
 				
@@ -644,7 +604,7 @@ namespace drb {
 				
 				m.featureA = { .index = fq.index,   .type = Feature::Type::Face };
 				m.featureB = { .index = incFaceIdx, .type = Feature::Type::Face };
-				m.normal   = Mat3(refTr) * refFace.plane.n;
+				m.normal   = Normalize(Mat3(refTr) * refFace.plane.n);
 				
 				return m;
 			}
@@ -727,7 +687,8 @@ namespace drb {
 					curr %= numCandidates;
 				}
 
-				ASSERT(p1Idx >= 0, "Invalid index");
+				if (p1Idx < 0) { return m; }
+				//ASSERT(p1Idx >= 0, "Invalid index");
 				Vec3 const p1 = incFacePoly.verts[p1Idx];
 				m.contacts[m.numContacts++] = Contact{
 					.position = refTr * Vec4(p1, 1.0f),
@@ -755,7 +716,8 @@ namespace drb {
 					}
 				}
 
-				ASSERT(p2Idx >= 0, "Invalid index");
+				if (p2Idx < 0) { return m; }
+				//ASSERT(p2Idx >= 0, "Invalid index");
 				Vec3 const p2 = incFacePoly.verts[p2Idx];
 				m.contacts[m.numContacts++] = Contact{
 					.position = refTr * Vec4(p2, 1.0f),
@@ -802,8 +764,9 @@ namespace drb {
 						p3Idx = i;
 					}
 				}
-
-				ASSERT(p3Idx >= 0, "Invalid index");
+				
+				if (p3Idx < 0) { return m; }
+				//ASSERT(p3Idx >= 0, "Invalid index");
 				Vec3 const p3 = incFacePoly.verts[p3Idx];
 				m.contacts[m.numContacts++] = Contact{
 					.position = refTr * Vec4(p3, 1.0f),
@@ -812,8 +775,54 @@ namespace drb {
 
 				return m;
 			}
-		}
-	}
-}
+
+			static inline ContactManifold CollideSphereSphereImpl(Sphere const& A, Vec3 const& cA, Sphere const& B, Vec3 const& cB)
+			{
+				ContactManifold result{};
+
+				Vec3 const disp = cB - cA;
+				Float32 const d2 = glm::length2(disp);
+
+				// Test if centers are at the same point
+				if (EpsilonEqual(d2, 0.0f, 1.0e-12f))
+				{
+					result.normal = Vec3(1, 0, 0);// arbitrary direction 
+				}
+				else
+				{
+					Float32 const dist = glm::sqrt(d2);
+					Float32 const pen = (A.r + B.r) - dist;
+					if (pen > 0.0f) {
+
+						result.normal = disp / dist;
+
+						result.contacts[result.numContacts++] = Contact{
+							// contact position is halfway between the surface points of two spheres
+							.position = result.normal * (A.r - 0.5f * pen) + cA,
+							.penetration = pen,
+						};
+					}
+				}
+
+				return result;
+			}
+
+
+			static inline ContactManifold CollideSphereCapImpl(Sphere const& A, Vec3 const& cA, Capsule const& B, Mat4 const& trB)
+			{
+				Segment const segB = CentralSegment(B, trB);
+
+				// Closest point to a on internal line segment of b
+				Vec3 const p = util::ClosestPoint(cA, segB);
+
+				// Construct a sphere on the fly, centered at the closest point, p,
+				// to sphere A on central segment of capsule B with radius of capsule B
+				Sphere const S{ B.r };
+
+				return CollideSphereSphereImpl(A, cA, S, p);
+			}
+
+		} //  namespace util
+} // namespace drb::physics
 
 #undef COLLIDE_FCN_NOT_IMPLEMENTED

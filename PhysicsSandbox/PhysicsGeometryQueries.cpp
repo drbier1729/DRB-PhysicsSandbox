@@ -95,11 +95,50 @@ namespace drb::physics {
 
 		ContactManifold Collide(Sphere const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
 		{
-			COLLIDE_FCN_NOT_IMPLEMENTED
+			Vec3 const cA = trA[3];
+			auto const gjkResult = util::GJK(cA, B, trB);
 
-				// Use GJK between A's center and B
-				// -> if (center and B are not intersecting): generate contact if distance < A's radius
-				// -> else: use SAT to generate contact
+			Vec3 const normal = Normalize(gjkResult.ptB - gjkResult.ptA);
+
+			/*if (gjkResult.d2 > A.r * A.r)
+			{
+				return ContactManifold{
+					.normal = normal
+				};
+			}
+			else if (gjkResult.d2 > 0.0f)
+			{
+				return ContactManifold{
+					.contacts = Contact{
+						.position = gjkResult.ptA + normal * A.r,
+						.penetration = A.r - glm::sqrt(gjkResult.d2),
+					},
+					.numContacts = 1,
+					.normal = normal,
+				};
+			}
+			else // deep collision
+			{
+				// find best separating axis (face normal of B)
+			}
+			*/
+
+			// DEBUG
+			return ContactManifold{
+					.contacts = {
+						Contact{
+							.position = gjkResult.ptA,
+							.penetration = 0.0f,
+						},
+						Contact{
+							.position = gjkResult.ptB,
+							.penetration = 0.0f,
+						},
+					},
+					.numContacts = 2,
+					.normal = normal,
+			};
+			// END DEBUG
 		}
 
 
@@ -241,7 +280,50 @@ namespace drb::physics {
 
 		ContactManifold Collide(Capsule const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
 		{
-			COLLIDE_FCN_NOT_IMPLEMENTED
+			Segment const segA = CentralSegment(A, trA);
+			auto const gjkResult = util::GJK(segA, B, trB);
+
+			Vec3 const normal = Normalize(gjkResult.ptB - gjkResult.ptA);
+
+			/*if (gjkResult.d2 > A.r * A.r)
+			{
+				return ContactManifold{
+					.normal = normal
+				};
+			}
+			else if (gjkResult.d2 > 0.0f)
+			{
+				return ContactManifold{
+					.contacts = Contact{
+						.position = gjkResult.ptA + normal * A.r,
+						.penetration = A.r - glm::sqrt(gjkResult.d2),
+					},
+					.numContacts = 1,
+					.normal = normal,
+				};
+			}
+			else // deep collision
+			{
+				// find best separating axis (face normal of B)
+			}
+			*/
+
+			// DEBUG
+			return ContactManifold{
+					.contacts = {
+						Contact{
+							.position = gjkResult.ptA,
+							.penetration = 0.0f,
+						},
+						Contact{
+							.position = gjkResult.ptB,
+							.penetration = 0.0f,
+						},
+					},
+					.numContacts = 2,
+					.normal = normal,
+			};
+			// END DEBUGs
 		}
 
 

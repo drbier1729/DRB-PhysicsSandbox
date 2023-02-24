@@ -250,8 +250,9 @@ namespace drb::physics::util {
 		}
 
 		// Values used in main loop
-		Vec3     disp = A;
-		Float32 oldD2 = std::numeric_limits<Float32>::max();
+		Vec3    disp    = A;
+		Vec3    oldDisp = Vec3(NAN);
+		Float32 oldD2   = std::numeric_limits<Float32>::max();
 
 		// supportA always == A
 		CvxSupport supportB{};		
@@ -273,19 +274,24 @@ namespace drb::physics::util {
 			supportB = GetSupport(B, /* invRotB* */ disp, simplex.bestB);
 
 
-			// Test first exit condition: new point is already in the simplex or 
+			// Test first exit conditions: new point is already in the simplex or 
 			// dir is invalid, indicating no intersection
 			Float32 const gVal = result.d2 - glm::dot(disp, A - supportB.pt);
-			if (gVal <= tol * result.d2 || gVal < tol2) { 
-				break; }
-
-
-			// Test error condition: make sure we're still converging.
-			if (not (result.d2 < oldD2))
+			if (gVal <= tol * result.d2 || gVal < tol2) { break; }
+			
+			// This is similar to the exit condition in Box2D, but seems to be
+			// unecessary in many other implementations (e.g. OpenGJK, Jolt Physics,
+			// Cameron's Enhanced GJK)
+			Bool duplicate = false;
+			for (Uint8 i = 0; i < simplex.size; ++i)
 			{
-				ASSERT(false, "Something went wrong: we're no longer converging.");
-				break;
+				if (supportB.e == simplex.edgeIdxsB[i])
+				{
+					duplicate = true;
+					break;
+				}
 			}
+			if (duplicate) { break; }
 
 
 			// Push new support point to the simplex
@@ -296,11 +302,13 @@ namespace drb::physics::util {
 			// Reduce simplex and compute new search direction
 			if (simplex.size > 1)
 			{
+				oldDisp = disp;
 				SimplexSolver solve{ simplex, disp };
 			}
 			else
 			{
 				ASSERT(false, "Invalid simplex. Must have at least 2 points during solver iterations");
+				break;
 			}
 
 
@@ -309,7 +317,17 @@ namespace drb::physics::util {
 			result.d2 = glm::length2(disp);
 
 
-			// Test second exit conditions: we were unable to reduce our simplex from
+			// Test second exit conditions: we are no longer converging
+			if (not (result.d2 < oldD2))
+			{
+				// Reset to one step prior in case of NAN values
+				disp = oldDisp;
+				result.d2 = oldD2;
+				break;
+			}
+
+
+			// Test third exit conditions: we were unable to reduce our simplex from
 			// a tetrahedron OR our d2 value is very small, indicating an intersection
 			{
 				Float32 norm2Max = std::numeric_limits<Float32>::lowest();
@@ -345,13 +363,14 @@ namespace drb::physics::util {
 		return result;
 	}
 
-	// GJK: Segment-Convex -- NOT DONE
+	// GJK: Segment-Convex
 	ClosestPointsQuery GJK(Segment const& A_, Convex const& B, Mat4 const& trB, Simplex* seed)
 	{
 		ASSERT(B.verts.size() > 0, "Hull must be non empty");
 
 		// Arbitrary -- could be set externally if we want
-		static constexpr Float32 tolerance = 1.0e-8f;
+		static constexpr Float32 tol = 1.0e-8f;
+		static constexpr Float32 tol2 = tol * tol;
 
 		// If we were provided with a seed, we can operate on that simplex, 
 		// otherwise we'll just use a local one
@@ -387,11 +406,10 @@ namespace drb::physics::util {
 
 		// Values used in main loop
 		Mat3 const invRotB = glm::transpose(Mat3(trB));
-		Vec3 const centroidA = 0.5f * (A.b + A.e);
-		Vec3 const centroidB = trB[3];
-
-		Vec3      dir = centroidB - centroidA; // from A toward B
-		Float32 oldD2 = std::numeric_limits<Float32>::max();
+		
+		Vec3    disp    = A.b - simplex.vertsB[0];
+		Vec3    oldDisp = disp;
+		Float32 oldD2   = std::numeric_limits<Float32>::max();
 
 		Float32    projA{};
 		Uint8	   idxA{};
@@ -399,9 +417,9 @@ namespace drb::physics::util {
 		CvxSupport supportB{};
 
 		ClosestPointsQuery result{
-			.ptA = centroidA,
-			.ptB = centroidB,
-			.d2 = glm::length2(dir)
+			.ptA = A.b,
+			.ptB = simplex.vertsB[0],
+			.d2 = glm::length2(disp)
 		};
 
 		// Main loop
@@ -411,53 +429,90 @@ namespace drb::physics::util {
 			ASSERT(simplex.GetType() != Simplex::Type::NONE, "Invalid simplex");
 
 			// Compute next support points
-			Float32 const projAb = glm::dot(dir, A.b);
-			Float32 const projAe = glm::dot(dir, A.e);
-			if (projAb > projAe)
+			projA = glm::dot(A.b, -disp);
+			idxA = 0;
+			supportA = A.b;
+			if (Float32 const tmp = glm::dot(A.e, -disp); tmp > projA)
 			{
-				projA = projAb;
-				supportA = A.b;
-				idxA = 0;
+				projA = tmp;
+				idxA = 1;
+				supportA = A.e;
+			}
+			supportB = GetSupport(B, /* invRotB* */ disp, simplex.bestB);
+
+
+			// Test first exit conditions: new point is already in the simplex or 
+			// dir is invalid, indicating no intersection
+			Float32 const gVal = result.d2 - glm::dot(disp, supportA - supportB.pt);
+			if (gVal <= tol * result.d2 || gVal < tol2) { 
+				break; }
+
+			// This is similar to the exit condition in Box2D, but seems to be
+			// unecessary in many other implementations (e.g. OpenGJK, Jolt Physics,
+			// Cameron's Enhanced GJK)
+			Bool duplicate = false;
+			for (Uint8 i = 0; i < simplex.size; ++i)
+			{
+				if (idxA == simplex.edgeIdxsA[i] && supportB.e == simplex.edgeIdxsB[i])
+				{
+					duplicate = true;
+					break;
+				}
+			}
+			if (duplicate) { 
+				break; }
+
+
+			// Push new support point to the simplex
+			simplex.bestB = supportB.e;
+			simplex.PushVert(supportA, idxA, supportB.pt, supportB.e);
+
+
+			// Reduce simplex and compute new search direction
+			if (simplex.size > 1)
+			{
+				oldDisp = disp;
+				SimplexSolver solve{ simplex, disp };
 			}
 			else
 			{
-				projA = projAe;
-				supportA = A.e;
-				idxA = 1;
+				ASSERT(false, "Invalid simplex. Must have at least 2 points during solver iterations");
+				break;
 			}
-			supportB = GetSupport(B, -dir, simplex.bestB);
 
-			// Test first exit condition: new point is already in the simplex or dir is invalid
-			Float32 const exceedRelTol = result.d2 - (projA - supportB.proj);
-			if (result.d2 < tolerance || EpsilonEqual(exceedRelTol, 0.0f, tolerance)) { break; }
 
-			// Push new point to the simplex
-			simplex.bestB = supportB.e;
-			simplex.PushVert(supportA, idxA,
-				             supportB.pt, supportB.e);
-
-			// Reduce the simplex
-			//GJKDistanceSubAlgorithm(simplex);
-
-			// Update our query result and search direction
-			simplex.ExtractWitnessPoints(result.ptA, result.ptB);
-			dir = result.ptA - result.ptB;
+			// Record last d2 value and update new d2 value
 			oldD2 = result.d2;
-			result.d2 = glm::length2(dir);
+			result.d2 = glm::length2(disp);
 
-			// Test second exit condition: we were unable to reduce our simplex from
-			// a tetrahedron OR our d2 value is very small, indicating an intersection
-			if (simplex.size == 4 || EpsilonEqual(result.d2, 0.0f, tolerance))
+
+			// Test second exit conditions: we are no longer converging
+			if (not (result.d2 < oldD2))
 			{
-				simplex.containsOrigin = true;
+				// Reset to one step prior in case of NAN values
+				disp = oldDisp;
+				result.d2 = oldD2;
 				break;
 			}
 
-			// Test error condition: we're no longer converging.
-			if (oldD2 >= result.d2)
+
+			// Test third exit conditions: we were unable to reduce our simplex from
+			// a tetrahedron OR our d2 value is very small, indicating an intersection
 			{
-				ASSERT(false, "Something went wrong: we're no longer converging.");
-				break;
+				Float32 norm2Max = std::numeric_limits<Float32>::lowest();
+				for (Uint8 i = 0; i < simplex.size; ++i)
+				{
+					Float32 const norm2 = glm::length2(simplex.vertsA[i] - simplex.vertsB[i]);
+					if (norm2 > norm2Max)
+					{
+						norm2Max = norm2;
+					}
+				}
+				if (simplex.size == 4 || result.d2 <= tol2 * norm2Max)
+				{
+					simplex.containsOrigin = true;
+					break;
+				}
 			}
 		}
 
@@ -468,6 +523,9 @@ namespace drb::physics::util {
 			result.d2 = -1.0f;
 		}
 
+		simplex.ComputeBarycentricCoords(disp);
+		simplex.ExtractWitnessPoints(result.ptA, result.ptB);
+
 		// Return to world space coords
 		result.ptA = trB * Vec4(result.ptA, 1);
 		result.ptB = trB * Vec4(result.ptB, 1);
@@ -477,6 +535,9 @@ namespace drb::physics::util {
 	// GJK: Convex-Convex -- See S. Cameron "Enhanced GJK" and Monanari "Improved GJK" -- NOT DONE
 	ClosestPointsQuery GJK(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB, Simplex* seed)
 	{
+		ASSERT(false, "Not implemented");
+
+
 		ASSERT(A.verts.size() > 0 && B.verts.size() > 0, "Hulls must be non empty");
 
 		// Arbitrary -- could be set externally if we want
@@ -634,7 +695,7 @@ namespace drb::physics::util {
 			Vec3 const s2 = vertsA[2] - vertsB[2];
 
 			Float32 maxArea = 0.0f;
-			Uint8 x = 0, y = 0;
+			Uint8 x = 0, y = 1;
 			Uint8 j = 1, k = 2;
 			for (Uint8 i = 0; i < 3; ++i)
 			{
@@ -647,6 +708,9 @@ namespace drb::physics::util {
 					x = j;
 					y = k;
 				}
+
+				j = k;
+				k = i;
 			}
 
 			Mat3 const M = {
@@ -868,6 +932,7 @@ namespace drb::physics::util {
 		}
 	}
 	
+
 	void SimplexSolver::Solve2D()
 	{
 		ASSERT(size == 3, "Can only be called on a Triangle");

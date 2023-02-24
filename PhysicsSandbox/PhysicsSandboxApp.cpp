@@ -25,7 +25,7 @@ namespace drb {
 		using namespace physics;
 
 		// Use default initialization
-		bool result = drb::Application::Init(argc, argv);
+		bool result = Application::Init(argc, argv);
 		if (not result) { return false; }
 
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -57,12 +57,10 @@ namespace drb {
 					.transform = glm::translate(Mat4(1), Vec3(0.0f, -2.0f, 0.0f)),
 					.mass = 20.0f
 				})
-			.AddCollider(
-				Capsule{ .r = 1.0f, .h = 0.5f },
+				/*MakeBox(Vec3(1.0f, 2.0f, 3.0f)),
 				{
-					.transform = glm::rotate(Mat4(1), 3.14f * 0.5f, Vec3(0.0f, 0.0f, 1.0f)),
-					.mass = 100.0f
-				})
+					.transform = glm::translate(Mat4(1), Vec3(0,0,2))
+				})*/
 			.Bake();
 
 
@@ -74,10 +72,10 @@ namespace drb {
 		mWorld.CreateRigidBody()
 			.SetPosition(Vec3(5, 0, 0))
 			.SetGravityScale(0.0f)
-			.SetCollisionGeometry(geomB);
+			.SetCollisionGeometry(geomA);
 			
 		
-		mWorld.CreateRigidBody()
+		/*mWorld.CreateRigidBody()
 			.SetType(physics::RigidBody::Type::Kinematic)
 			.SetPosition(Vec3(-5, 0, 0))
 			.SetCollisionGeometry(geomC);
@@ -86,14 +84,14 @@ namespace drb {
 		mWorld.CreateRigidBody()
 			.SetType(physics::RigidBody::Type::Kinematic)
 			.SetPosition(Vec3(-10, 0, 0))
-			.SetCollisionGeometry(geomB);
+			.SetCollisionGeometry(geomB);*/
 			
 
-		mWorld.AddStaticCollider(
+		/*mWorld.AddStaticCollider(
 			MakeBox(Vec3(1.0f, 2.0f, 3.0f)),
 			{
 				.transform = glm::translate(Mat4(1), Vec3(0,0,2))
-			});
+			});*/
 			
 				
 

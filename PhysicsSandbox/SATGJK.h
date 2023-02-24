@@ -95,10 +95,16 @@ namespace drb::physics::util {
 				            ShapeB const& B, Mat4 const& trB, SupportFn<ShapeB> supportFunctionB,
 							Simplex * seed = nullptr);
 			
-	// Specialized GJK: Convex-Convex
+	// Specialized GJK: Convex-Convex -- NOT IMPLEMENTED
 	ClosestPointsQuery GJK(Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB, Simplex* seed = nullptr);
 
-	// Specialized GJK: Point-Convex
+	// Specialized GJK: Point-Convex -- PARTIALLY IMPLEMENTED
+	// Issues:
+	// - No S3D method yet
+	// - Witness points "jump" sometimes 
+	//		repro: use sphere against tet or capsule against box and move in the y direction.
+	//		the witness point will "jump" to hull.verts[ hull.edges[0] ] when the sphere/cap
+	//		is about halfway up the side of the convex hull
 	ClosestPointsQuery GJK(Vec3 const& A, Convex const& B, Mat4 const& trB, Simplex* seed = nullptr);
 
 	// Specialized GJK: Segment-Convex

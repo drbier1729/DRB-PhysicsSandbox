@@ -108,11 +108,11 @@
     <ClCompile Include="SATGJK.cpp">
       <Filter>Source Files\Physics\Collision</Filter>
     </ClCompile>
-    <ClCompile Include="GeometryQueryDataStructures.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="DynamicBVH.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Physics\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryQueryDataStructures.cpp">
+      <Filter>Source Files\Physics\Collision</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -182,11 +182,11 @@
     <ClInclude Include="SATGJK.h">
       <Filter>Header Files\Physics\Collision</Filter>
     </ClInclude>
-    <ClInclude Include="GeometryQueryDataStructures.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="DynamicBVH.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Physics\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryQueryDataStructures.h">
+      <Filter>Header Files\Physics\Collision</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -228,6 +228,9 @@
     </None>
     <None Include="PhysicsDebugDrawing.inl">
       <Filter>Header Files\Physics\Debug</Filter>
+    </None>
+    <None Include="DynamicBVH.inl">
+      <Filter>Header Files</Filter>
     </None>
   </ItemGroup>
 </Project>

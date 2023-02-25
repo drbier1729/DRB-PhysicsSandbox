@@ -9,56 +9,81 @@ namespace drb::physics {
 	class RigidBody;
 	struct Ray;
 	struct Sphere;
+	struct BVHNode;
 
-	// Could make this a template class which can accept
-	// other shapes which satisfy a concept BoundingVolume
+	// User accessible data from the BVH
 	struct BV
 	{
-		AABB  bounds      = {};
-		Int32 ownerHandle = std::numeric_limits<Int32>::min(); // opaque handle to a RigidBody or CollisionGeometry object
+		using Handle = Uint64;
+
+		static constexpr Vec3    enlargeFactor = Vec3(0.1f);
+		static constexpr Float32 displacementMultiplier = 4.0f;
+
+		void* userData = nullptr; // ptr to CollisionGeometry or RigidBody, etc
+		AABB  fatBounds = {};     // enlarged AABB
+
+		BV() = default;
+		BV(AABB const& aabb, void* data)
+			: userData{ data },
+			fatBounds{
+				.max = aabb.max + enlargeFactor,
+				.min = aabb.min - enlargeFactor
+			}
+		{}
 	};
 
+	// Dynamic binary tree Bounding Volume Hierarchy of enlarged AABB
 	class BVHierarchy
 	{
 	private:
-		// Binary tree currently, but could add children
-		// for a quad tree, etc
-		struct Node 
+		class NodePool
 		{
-			static inline constexpr Int32 NullIdx = -1;
+		private:
+			BVHNode*  nodes;
+			Uint32    firstFree;
+			Uint32    size;
+			Uint32    capacity;
 
-			Int32 idx         = NullIdx;
-			Int32 parent      = NullIdx;
-			Int32 children[2] = { NullIdx, NullIdx };
+		public:
+			NodePool();
+			~NodePool() noexcept;
 
-			inline Bool IsRoot() const  { return parent == NullIdx; }
-			inline Bool IsLeaf() const  { return children[0] == NullIdx && children[1] == NullIdx; }
+			BVHNode&       operator[](Uint32 index);
+			BVHNode const& operator[](Uint32 index) const;
+			BVHNode*       Create(AABB const& aabb, void* userData = nullptr);
+			void           Free(Uint32 nodeIndex);
+			Uint32		   Size() const;
+			Uint32		   Capacity() const;
 		};
 
 	private:
-		std::vector<BV>   boundingVolumes = {};
-		std::vector<Node> tree            = {};
-		Int32             rootIdx         = Node::NullIdx;
-		Int32			  firstFree       = Node::NullIdx;
-		Int32			  size            = 0;
+		NodePool tree    = {};
+		Uint32   rootIdx = NullIdx;
 
 	public:
-		Int32 Insert(BV const& bv);
-		
+		static constexpr Uint32 NullIdx = std::numeric_limits<Uint32>::max();
+
+		BV::Handle  Insert(AABB const& aabb, void* userData);
+		BV const*   Find(BV::Handle bvHandle) const;
+		void	    Remove(BV::Handle bvHandle);
+
 		// TODO
-		void  Remove(Int32 bvHandle);
-		void  Balance();
-		void Query(AABB const& box, std::vector<BV>& out) const;
-		void Query(Sphere const& sph, std::vector<BV>& out) const;
-		void Query(Ray const&  ray, std::vector<BV>& out) const;
+		Bool		MoveBV(BV::Handle, AABB const& aabb, Vec3 const& displacement);
+		void	    Query(AABB const&   box, std::invocable<BV const&> auto callback) const;
+		void	    Query(Sphere const& sph, std::invocable<BV const&> auto callback) const;
+		void	    Query(Ray const&    ray, std::invocable<BV const&> auto callback) const;
 
 
 	private:
 		// Helpers
-		Node& CreateNode(BV const& bv = {});
-		Node& FindBestSiblingFor(Node const& n);
+		Uint32	    Balance(Uint32 index);
+		BVHNode*    FindBestSiblingFor(BVHNode const* n);
+		void		RefitBVsFrom(Uint32 index);
+		Bool	    ValidHandle(BV::Handle bvHandle, Uint32& indexOut) const;
 	};
 
 }
+
+#include "DynamicBVH.inl"
 #endif
 

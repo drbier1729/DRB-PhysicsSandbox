@@ -254,6 +254,7 @@
     <None Include="Camera.inl" />
     <None Include="default.frag" />
     <None Include="default.vert" />
+    <None Include="DynamicBVH.inl" />
     <None Include="FrameTimer.inl" />
     <None Include="Mesh.inl" />
     <None Include="PhysicsDebugDrawing.inl" />

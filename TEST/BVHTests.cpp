@@ -34,20 +34,14 @@ namespace TEST
 			BVHierarchy bvh{};
 
 			// act
-			bvh.Insert(BV{
-					.bounds = {.max = Vec3(1), .min = Vec3(0)}
-				});
+			auto handle0 = bvh.Insert(AABB{ .max = Vec3(1), .min = Vec3(0) });
 
-			bvh.Insert(BV{
-					.bounds = {.max = Vec3(-1), .min = Vec3(-3)}
-				});
+			auto handle1 = bvh.Insert(AABB{ .max = Vec3(-1), .min = Vec3(-3) });
 
-			bvh.Insert(BV{
-					.bounds = {.max = Vec3(10), .min = Vec3(3)}
-				});
+			auto handle2 = bvh.Insert(AABB{.max = Vec3(10), .min = Vec3(3)});
 
 			// assert
-			bvh.Remove(0);
+			bvh.Remove(handle0);
 		}
 	};
 }

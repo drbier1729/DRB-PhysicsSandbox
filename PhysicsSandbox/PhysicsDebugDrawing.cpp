@@ -161,6 +161,32 @@ namespace drb {
 			return *this;
 		}
 
+		DebugRenderer const& DebugRenderer::DrawBVH() const
+		{
+			static constexpr ColorInfo aabbColor{
+					.specular = { 0.02f, 0.02f, 0.02f },
+					.diffuse = { 0.9f, 0.9f, 0.9f },
+					.gloss = 0.82f,
+					.opacity = 1.0f
+			};
+
+
+
+			EnableWireframeMode(true);
+			{
+				drb::Mesh::ScopedUse use{ drb::Mesh::Cube() };
+				auto drawBV = [this, &use](BV const& bv) {
+
+					Mat4 const modelTr = glm::translate(Mat4(1), bv.fatBounds.Center()) * glm::scale(Mat4(1), bv.fatBounds.Halfwidths());
+					DrawMesh(use.mesh, shader, modelTr, aabbColor);
+				};
+				world->bvhTree.ForEach(drawBV);
+			}
+			EnableWireframeMode(false);
+
+			return *this;
+		}
+
 
 		DebugRenderer const& DebugRenderer::HighlightOneRigidBody(RigidBody const& rb, Float32 frameInterpolation, ColorInfo const& ci) const
 		{

@@ -95,6 +95,8 @@ namespace drb::physics {
 
 		ContactManifold Collide(Sphere const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
 		{
+			COLLIDE_FCN_NOT_IMPLEMENTED
+
 			Vec3 const cA = trA[3];
 			auto const gjkResult = util::GJK(cA, B, trB);
 
@@ -280,6 +282,8 @@ namespace drb::physics {
 
 		ContactManifold Collide(Capsule const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
 		{
+			COLLIDE_FCN_NOT_IMPLEMENTED
+
 			Segment const segA = CentralSegment(A, trA);
 			auto const gjkResult = util::GJK(segA, B, trB);
 

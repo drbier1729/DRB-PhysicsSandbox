@@ -75,7 +75,7 @@ namespace drb {
 			.SetCollisionGeometry(geomA);
 			
 		
-		/*mWorld.CreateRigidBody()
+		mWorld.CreateRigidBody()
 			.SetType(physics::RigidBody::Type::Kinematic)
 			.SetPosition(Vec3(-5, 0, 0))
 			.SetCollisionGeometry(geomC);
@@ -84,18 +84,18 @@ namespace drb {
 		mWorld.CreateRigidBody()
 			.SetType(physics::RigidBody::Type::Kinematic)
 			.SetPosition(Vec3(-10, 0, 0))
-			.SetCollisionGeometry(geomB);*/
+			.SetCollisionGeometry(geomB);
 			
 
-		/*mWorld.AddStaticCollider(
+		mWorld.AddStaticCollider(
 			MakeBox(Vec3(1.0f, 2.0f, 3.0f)),
 			{
 				.transform = glm::translate(Mat4(1), Vec3(0,0,2))
-			});*/
-			
-				
+			});
 
-		
+		// Build BVH
+		mWorld.Init();
+
 		// Sync Renderer and Recorder with World
 		mRenderer.Init(mWorld);
 		mRecorder.Init(mWorld, 300); // record 300 frames (roughly 5 seconds)
@@ -214,6 +214,7 @@ namespace drb {
 					})
 				.DrawStaticCollisionGeometry()
 				.DrawContactManifolds()
+				.DrawBVH()
 				.EndDraw();
 			
 			// Draw inspector

@@ -230,7 +230,7 @@
       <Filter>Header Files\Physics\Debug</Filter>
     </None>
     <None Include="DynamicBVH.inl">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Physics\Collision</Filter>
     </None>
   </ItemGroup>
 </Project>

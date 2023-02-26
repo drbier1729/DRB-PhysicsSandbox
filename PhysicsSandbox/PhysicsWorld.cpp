@@ -8,6 +8,8 @@ namespace drb {
 			: bodies{}, 
 			worldBody{},
 			colliders{},
+			bvhTree{},
+			bodyBVHandles{},
 			contacts{},
 			targetSubsteps{ targetSubsteps_ }
 		{
@@ -15,6 +17,21 @@ namespace drb {
 			colliders.spheres.reserve(maxColliders);
 			colliders.capsules.reserve(maxColliders);
 			colliders.hulls.reserve(maxColliders);
+			bvhTree.Reserve(maxBodies);
+			bodyBVHandles.reserve(maxBodies);
+		}
+
+		void World::Init()
+		{
+			for (auto && rb : bodies)
+			{	
+				if (rb.geometry)
+				{
+					AABB const bodyBounds = rb.geometry->bounds.MovedBy(rb.position);
+					auto const bvHandle = bvhTree.Insert(bodyBounds, &rb);
+					bodyBVHandles.push_back(bvHandle);
+				}
+			}
 		}
 
 
@@ -60,9 +77,8 @@ namespace drb {
 		void World::Step(Float32 dt)
 		{
 			// Broadphase Collision Detection
-			// ...
-
-
+			
+		
 			// Narrowphase Collision Detection + Contact Generation
 			DetectCollisions();
 
@@ -73,11 +89,30 @@ namespace drb {
 			for (Uint32 i = 0; i < targetSubsteps; ++i)
 			{
 				// Solve Velocity constraints
-				// - Collision Resolution
+				// - Collision and Resting Contact Resolution
 				// - HeightMap constraint/collision
 			}
 
-			for (auto&& rb : bodies) { rb.ProjectVelocities(dt); }
+			for (Uint32 i = 0; i < bodies.size(); ++i) 
+			{ 
+				RigidBody& rb = bodies[i];
+
+				rb.ProjectVelocities(dt);
+
+				if (rb.geometry)
+				{
+					Mat3 const rot = rb.GetOrientationMatrix();
+					Vec3 const pos = rb.position;
+					AABB const bodyBounds = rb.geometry->bounds.Transformed(rot, pos);
+					
+					Vec3 const disp = pos - rb.prevPosition;
+					if (glm::length2(disp) > 1.0e-4f)
+					{
+						bvhTree.MoveBoundingVolume(bodyBVHandles[i], bodyBounds, disp);
+					}
+				}
+
+			}
 
 			// Collision Callbacks
 			// ...

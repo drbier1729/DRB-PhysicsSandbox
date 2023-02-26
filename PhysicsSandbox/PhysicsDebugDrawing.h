@@ -56,6 +56,7 @@ namespace drb {
 			DebugRenderer const& DrawStaticCollisionGeometry() const;
 			DebugRenderer const& DrawOneContactManifold(ContactManifold const& m) const;
 			DebugRenderer const& DrawContactManifolds() const;
+			DebugRenderer const& DrawBVH() const;
 			DebugRenderer const& EnableWireframeMode(Bool val = true) const;
 		};
 

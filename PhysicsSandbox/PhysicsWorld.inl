@@ -5,8 +5,7 @@ namespace drb {
 		inline RigidBody& World::CreateRigidBody()
 		{
 			ASSERT(bodies.size() < bodies.capacity(), "Capacity limit reached.");
-			bodies.emplace_back();
-			return bodies.back();
+			return bodies.emplace_back();
 		}
 
 		template<Shape T>
@@ -15,26 +14,32 @@ namespace drb {
 			if constexpr (std::is_same_v<T, Sphere>)
 			{
 				ASSERT(colliders.spheres.size() < colliders.spheres.capacity(), "Capacity limit reached.");
-				colliders.spheres.emplace_back(std::forward<T>(shape), 
+				auto& c = colliders.spheres.emplace_back(std::forward<T>(shape), 
 					std::forward<Mat4>(options.transform), 
 					std::forward<Float32>(options.mass));
-				return colliders.spheres.back();
+
+				bvhTree.Insert(MakeAABB(c.shape, c.transform), &c);
+				return c;
 			}
 			else if constexpr (std::is_same_v<T, Capsule>)
 			{
 				ASSERT(colliders.capsules.size() < colliders.capsules.capacity(), "Capacity limit reached.");
-				colliders.capsules.emplace_back(std::forward<T>(shape),
+				auto& c = colliders.capsules.emplace_back(std::forward<T>(shape),
 					std::forward<Mat4>(options.transform),
 					std::forward<Float32>(options.mass));
-				return colliders.capsules.back();
+
+				bvhTree.Insert(MakeAABB(c.shape, c.transform), &c);
+				return c;
 			}
 			else if constexpr (std::is_same_v<T, Convex>)
 			{
 				ASSERT(colliders.hulls.size() < colliders.hulls.capacity(), "Capacity limit reached.");
-				colliders.hulls.emplace_back(std::forward<T>(shape),
+				auto& c = colliders.hulls.emplace_back(std::forward<T>(shape),
 					std::forward<Mat4>(options.transform),
 					std::forward<Float32>(options.mass));
-				return colliders.hulls.back();
+
+				bvhTree.Insert(MakeAABB(c.shape, c.transform), &c);
+				return c;
 			}
 			else
 			{
@@ -48,20 +53,26 @@ namespace drb {
 			if constexpr (std::is_same_v<T, Sphere>)
 			{
 				ASSERT(colliders.spheres.size() < colliders.spheres.capacity(), "Capacity limit reached.");
-				colliders.spheres.emplace_back(shape, options.transform, options.mass);
-				return colliders.spheres.back();
+				auto& c = colliders.spheres.emplace_back(shape, options.transform, options.mass);
+
+				bvhTree.Insert(MakeAABB(c.shape, c.transform), &c);
+				return c;
 			}
 			else if constexpr (std::is_same_v<T, Capsule>)
 			{
 				ASSERT(colliders.capsules.size() < colliders.capsules.capacity(), "Capacity limit reached.");
-				colliders.capsules.emplace_back(shape, options.transform, options.mass);
-				return colliders.capsules.back();
+				auto& c = colliders.capsules.emplace_back(shape, options.transform, options.mass);
+
+				bvhTree.Insert(MakeAABB(c.shape, c.transform), &c);
+				return c;
 			}
 			else if constexpr (std::is_same_v<T, Convex>)
 			{
 				ASSERT(colliders.hulls.size() < colliders.hulls.capacity(), "Capacity limit reached.");
-				colliders.hulls.emplace_back(shape, options.transform, options.mass);
-				return colliders.hulls.back();
+				auto& c = colliders.hulls.emplace_back(shape, options.transform, options.mass);
+
+				bvhTree.Insert(MakeAABB(c.shape, c.transform), &c);
+				return c;
 			}
 			else
 			{
@@ -71,10 +82,14 @@ namespace drb {
 
 		inline void World::Clear()
 		{
-			bodies.clear();
-			colliders.spheres.clear();
-			colliders.capsules.clear();
+			// Reverse order of construction
+			bodyBVHandles.clear();
+			bvhTree.Clear();
 			colliders.hulls.clear();
+			colliders.capsules.clear();
+			colliders.spheres.clear();
+			bodies.clear();
+			
 		}
 	}
 

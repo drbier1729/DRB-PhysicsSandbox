@@ -157,18 +157,14 @@ namespace drb {
 			invInertia = glm::inverse(I);
 
 			// Compute bounds
-			AABB tmp = {};
 			for (auto&& s : spheres) {
-				tmp = MakeAABB(s.shape, s.transform);
-				bounds.Union(tmp);
+				bounds = bounds.Union( MakeAABB(s.shape, s.transform) );
 			}
 			for (auto&& c : capsules) {
-				tmp = MakeAABB(c.shape, c.transform);
-				bounds.Union(tmp);
+				bounds = bounds.Union(MakeAABB(c.shape, c.transform));
 			}
 			for (auto&& h : hulls) {
-				tmp = MakeAABB(h.shape, h.transform);
-				bounds.Union(tmp);
+				bounds = bounds.Union(MakeAABB(h.shape, h.transform));
 			}
 		}			
 	}

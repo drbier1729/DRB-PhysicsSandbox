@@ -8,52 +8,6 @@ namespace drb::physics {
 	static inline AABB Union(AABB const& a, AABB const& b);
 	static inline BV::Handle MakeHandle(Uint32 index, Uint32 version);
 
-	struct BVHNode
-	{
-		static constexpr Uint32 NullIdx = BVHierarchy::NullIdx;
-
-		BV bv = {};
-
-		union {
-			Uint32 parent = NullIdx;
-			Uint32 nextFree;
-		};
-
-		Uint32 children[2] = { NullIdx, NullIdx };
-
-		// Free node = NullIdx, Leaf = 0 
-		Uint32 height = 0;
-
-		// Used to check "Find" and "Remove" methods
-		Uint32 version = 0;
-		Uint32 index = 0;
-
-		// True if we need to remove and reinsert this node
-		Bool   moved = false;
-
-		inline void Create(AABB const& aabb, void* userData)
-		{
-			bv = BV{ aabb, userData };
-			// do not set index -- this is updated when the NodePool grows
-			// do not set version -- this is updated when node is freed
-			height = 0;
-			parent = NullIdx;
-			children[0] = NullIdx;
-			children[1] = NullIdx;
-			moved = false;
-		}
-		inline void Free(Uint32 nextFreeIdx)
-		{
-			version++;
-			height = NullIdx;
-			nextFree = nextFreeIdx;
-		}
-		inline Bool IsFree() const { return height == NullIdx; }
-		inline Bool IsLeaf() const { return children[0] == NullIdx; }
-	};
-	static_assert(sizeof(BVHNode) == 64);
-
-
 	BV::Handle BVHierarchy::Insert(AABB const& aabb, void* userData) 
 	{ 	
 		BVHNode* newNode = tree.Create(aabb, userData);
@@ -63,111 +17,19 @@ namespace drb::physics {
 			return std::numeric_limits<BV::Handle>::max();
 		}
 		
-		// If we just created the first node, it is the root
-		if (tree.Size() == 1)
-		{ 
-			rootIdx = newNode->index;
-			return MakeHandle(rootIdx, newNode->version); 
-		}
+		newNode->moved = true;
+		Bool const success = InsertLeaf(newNode);
 
-		// ---------------------------------------------------------------------
-		// 1. find the best sibling for the new leaf
-		// ---------------------------------------------------------------------
-		BVHNode* sibling = FindBestSiblingFor(newNode);
-
-		// ---------------------------------------------------------------------
-		// 2. create the new parent
-		// ---------------------------------------------------------------------
-		Int32 oldParent = sibling->parent;
-
-		BVHNode* newParent = tree.Create( Union(newNode->bv.fatBounds, sibling->bv.fatBounds) );
-		if (not newParent) 
-		{
-			ASSERT(false, "Failed to create parent node.");
-			tree.Free(newNode->index);
-			return std::numeric_limits<BV::Handle>::max();
-		}
-		
-		newParent->parent = oldParent;
-		newParent->height = sibling->height + 1;
-
-		if (oldParent != NullIdx)
-		{
-			// The sibling was not the root
-			if (tree[oldParent].children[0] == sibling->index)
-			{
-				tree[oldParent].children[0] = newParent->index;
-			}
-			else
-			{
-				tree[oldParent].children[1] = newParent->index;
-			}
-			newParent->children[0] = sibling->index;
-			newParent->children[1] = newNode->index;
-			sibling->parent = newParent->index;
-			newNode->parent = newParent->index;
-		}
-		else
-		{
-			// The sibling was the root
-			newParent->children[0] = sibling->index;
-			newParent->children[1] = newNode->index;
-			sibling->parent = newParent->index;
-			newNode->parent = newParent->index;
-			rootIdx = newParent->index;
-		}
-
-		// ---------------------------------------------------------------------
-		// 3. walk up tree and refit BVs
-		// ---------------------------------------------------------------------
-		RefitBVsFrom(newNode->parent);
-
-		return MakeHandle(newNode->index, newNode->version);
+		return success ? 
+			MakeHandle(newNode->index, newNode->version) : 
+			std::numeric_limits<BV::Handle>::max();
 	}
 	
 	void  BVHierarchy::Remove(BV::Handle bvHandle) 
 	{
 		if (Uint32 index = NullIdx; ValidHandle(bvHandle, index))
 		{
-			if (index == rootIdx)
-			{
-				rootIdx = NullIdx;
-				return;
-			}
-			else
-			{
-				BVHNode& curr = tree[index];
-
-				Uint32 const parentIdx      = curr.parent;
-				Uint32 const grandparentIdx = tree[parentIdx].parent;
-				Uint32 const siblingIdx     = (tree[parentIdx].children[0] == index) ?
-												tree[parentIdx].children[1] :
-												tree[parentIdx].children[0];
-
-				if (grandparentIdx != NullIdx)
-				{
-					BVHNode& grandparent = tree[grandparentIdx];
-					for (Uint8 i = 0; i < 2; ++i)
-					{
-						if (grandparent.children[i] == parentIdx)
-						{
-							grandparent.children[i] = siblingIdx;
-							break;
-						}
-					}
-					tree[siblingIdx].parent = grandparentIdx;
-					tree.Free(parentIdx);
-
-					RefitBVsFrom(grandparentIdx);
-				}
-				else
-				{
-					rootIdx = siblingIdx;
-					tree[siblingIdx].parent = NullIdx;
-					tree.Free(parentIdx);
-				}
-			}
-
+			RemoveLeaf(index);
 			tree.Free(index);
 		}
 	}
@@ -181,10 +43,54 @@ namespace drb::physics {
 		return nullptr;
 	}
 
-	Bool BVHierarchy::MoveBV(BV::Handle, AABB const& aabb, Vec3 const& displacement)
+	Bool BVHierarchy::MoveBoundingVolume(BV::Handle handle, AABB const& aabb, Vec3 const& displacement)
 	{
-		ASSERT(false, "Not implemented");
+		if (Uint32 index = NullIdx; ValidHandle(handle, index))
+		{
+			ASSERT(tree[index].IsLeaf(), "Cannot move internal nodes");
+
+			Vec3 const d = BV::displacementMultiplier * displacement;
+
+			AABB predictedAABB = aabb.Expanded(BV::enlargeFactor);
+			if (d.x < 0.0f) { predictedAABB.min.x += d.x; }
+			else            { predictedAABB.max.x += d.x; }
+			if (d.y < 0.0f) { predictedAABB.min.y += d.y; }
+			else            { predictedAABB.max.y += d.y; }
+			if (d.z < 0.0f) { predictedAABB.min.z += d.z; }
+			else            { predictedAABB.max.z += d.z; }
+
+			AABB const& treeAABB = tree[index].bv.fatBounds;
+			if (treeAABB.Contains(predictedAABB))
+			{
+				AABB const hugeAABB = predictedAABB.Expanded(BV::displacementMultiplier * BV::enlargeFactor);
+				if (hugeAABB.Contains(predictedAABB))
+				{
+					return false;
+				}
+			}
+
+			RemoveLeaf(index);
+
+			BVHNode& n = tree[index];
+			n.bv.fatBounds = predictedAABB;
+
+			InsertLeaf(&n);
+			n.moved = true;			
+		}
+
 		return false;
+	}
+
+	void BVHierarchy::Reserve(Uint32 objectCount)
+	{
+		// reserve enough nodes for a tree with objectCount leaves
+		tree.Reserve(objectCount * 2);
+	}
+
+	void BVHierarchy::Clear()
+	{
+		tree.Clear();
+		rootIdx = NullIdx;
 	}
 
 	// -------------------------------------------------------------------------
@@ -192,18 +98,29 @@ namespace drb::physics {
 	// -------------------------------------------------------------------------
 
 	BVHierarchy::NodePool::NodePool()
-		: nodes{ (BVHNode*)std::malloc(sizeof(BVHNode) * 16) },
-		firstFree{ NullIdx },
+		: nodes{ nullptr },
+		firstFree{ 0 },
 		size{ 0 },
-		capacity{ 16 }
-	{
-		ASSERT(nodes, "Bad alloc");
+		capacity{ 0 }
+	{}
 
-		// Zero the new nodes
+	BVHierarchy::NodePool::~NodePool() noexcept
+	{
+		std::free(nodes);
+	}
+	
+	void BVHierarchy::NodePool::Clear()
+	{
+		if (capacity == 0) { return; }
+
+		// Reduce size
+		size = 0;
+
+		// Zero the nodes
 		std::memset(nodes, 0, capacity * sizeof(BVHNode));
 
-		// Set up free list
-		for (Uint32 i = 0; i < capacity - 1; ++i)
+		// Reset free list
+		for (Uint32 i = 0; (i + 1) < capacity; ++i)
 		{
 			nodes[i].nextFree = i + 1;
 			nodes[i].height = NullIdx;
@@ -212,11 +129,7 @@ namespace drb::physics {
 		nodes[capacity - 1].nextFree = NullIdx;
 		nodes[capacity - 1].height = NullIdx;
 		nodes[capacity - 1].index = capacity - 1;
-	}
-
-	BVHierarchy::NodePool::~NodePool() noexcept
-	{
-		std::free(nodes);
+		firstFree = 0;
 	}
 
 	BVHNode& BVHierarchy::NodePool::operator[](Uint32 index)
@@ -239,46 +152,7 @@ namespace drb::physics {
 		if (firstFree == NullIdx)
 		{
 			ASSERT(size == capacity, "Growing unecessarily");
-
-			static constexpr Uint32 maxCapacity = std::numeric_limits<Uint32>::max() / 2;
-			
-			if (capacity >= maxCapacity) {
-				ASSERT(capacity < maxCapacity, "Growing will cause overflow");
-				return nullptr;
-			}
-
-			BVHNode* const oldNodes = nodes;
-			Uint32 const   oldCap   = capacity;
-			
-			capacity = (capacity == 0) ? 16 : capacity * 2;  // growth factor of 2
-			nodes    = (BVHNode*)std::malloc(capacity * sizeof(BVHNode));
-			
-			if (not nodes) {
-				ASSERT(false, "Bad alloc");
-				nodes    = oldNodes;
-				capacity = oldCap;
-				return nullptr;
-			}
-
-			// Copy the old nodes then free them
-			std::memcpy(nodes, oldNodes, size * sizeof(BVHNode));
-			std::free(oldNodes);
-		
-			// Zero the new nodes
-			std::memset(nodes + size, 0, (capacity - size) * sizeof(BVHNode));
-
-			// Set up free list
-			for (Uint32 i = size; (i + 1) < capacity; ++i)
-			{
-				nodes[i].nextFree = i + 1;
-				nodes[i].height   = NullIdx;
-				nodes[i].index    = i;
-			}
-			nodes[capacity - 1].nextFree = NullIdx;
-			nodes[capacity - 1].height   = NullIdx;
-			nodes[capacity - 1].index    = capacity - 1;
-
-			firstFree = size;
+			capacity = Reserve(capacity * 2);
 		}
 
 		Uint32 const index = firstFree;
@@ -307,20 +181,203 @@ namespace drb::physics {
 
 	Uint32 BVHierarchy::NodePool::Capacity() const { return capacity; }
 
-	// Performs left or right rotation if subtree with root at index is
-	// imbalanced. Returns the index of the new root of the subtree.
-	Uint32 BVHierarchy::Balance(Uint32 index)
+	Uint32 BVHierarchy::NodePool::Reserve(Uint32 newCapacity)
 	{
-		ASSERT(index < tree.Capacity(), "Index invalid");
-
-		BVHNode& a = tree[index];
-		if (a.IsLeaf() || a.height < 2)
+		static constexpr Uint32 maxCapacity = 1024u * 1024u;
+		
+		if (capacity >= newCapacity || capacity == maxCapacity)
 		{
-			return index;
+			//ASSERT(capacity < newCapacity, "Reserving unecessarily");
+			//ASSERT(capacity < maxCapacity, "Max capacity reached");
+			return capacity;
 		}
 
-		ASSERT(false, "Impl not finished");
-		return NullIdx;
+		if (capacity == 0)
+		{
+			ASSERT(size == 0, "Size invalid");
+
+			capacity = glm::max(minCapacity, newCapacity);
+			nodes    = (BVHNode*)std::malloc(capacity * sizeof(BVHNode));
+
+			if (not nodes)
+			{
+				ASSERT(nodes, "Bad alloc");
+				return capacity;
+			}
+		}
+		else
+		{
+			BVHNode* const oldNodes = nodes;
+			Uint32 const   oldCap   = capacity;
+
+			// Grow by at least by a factor of 2, or up to maxCapacity (which ever is less)
+			capacity = glm::min(maxCapacity, glm::max(newCapacity, capacity * 2));
+			nodes    = (BVHNode*)std::malloc(capacity * sizeof(BVHNode));
+
+			if (not nodes) {
+				ASSERT(false, "Bad alloc");
+				nodes    = oldNodes;
+				capacity = oldCap;
+				return capacity;
+			}
+
+			// Copy the old nodes then free them
+			std::memcpy(nodes, oldNodes, size * sizeof(BVHNode));
+			std::free(oldNodes);
+		}
+
+		// Zero the new nodes
+		std::memset(nodes + size, 0, (capacity - size) * sizeof(BVHNode));
+
+		// Set up free list
+		for (Uint32 i = size; (i + 1) < capacity; ++i)
+		{
+			nodes[i].nextFree = i + 1;
+			nodes[i].height = NullIdx;
+			nodes[i].index = i;
+		}
+		nodes[capacity - 1].nextFree = NullIdx;
+		nodes[capacity - 1].height = NullIdx;
+		nodes[capacity - 1].index = capacity - 1;
+		firstFree = size;
+
+		return capacity;
+	}
+
+	// Performs left or right rotation if subtree with root at index is
+	// imbalanced. Returns the index of the new root of the subtree.
+	Uint32 BVHierarchy::Balance(Uint32 aIdx)
+	{
+		ASSERT(aIdx < tree.Capacity(), "Index invalid");
+
+		BVHNode& a = tree[aIdx];
+		if (a.IsLeaf() || a.height < 2)
+		{
+			return aIdx;
+		}
+
+		BVHNode& b = tree[a.children[0]];
+		BVHNode& c = tree[a.children[1]];
+
+		Int32 const balance = c.height - b.height;
+
+		if (balance > 1)
+		{
+			// Rotate c up
+			BVHNode& cChild0 = tree[c.children[0]];
+			BVHNode& cChild1 = tree[c.children[1]];
+
+			// Swap a and c
+			c.children[0] = a.index;
+			c.parent      = a.parent;
+			a.parent      = c.index;
+			if (c.parent != NullIdx)
+			{
+				BVHNode& cParent = tree[c.parent];
+				if (cParent.children[0] == a.index)
+				{
+					cParent.children[0] = c.index;
+				}
+				else
+				{
+					ASSERT(cParent.children[1] == a.index, "Parent is incorrect");
+					cParent.children[1] = c.index;
+				}
+			}
+			else
+			{
+				rootIdx = c.index;
+			}
+
+			// Rotate
+			if (cChild0.height > cChild1.height)
+			{
+				c.children[1] = cChild0.index;
+				a.children[1] = cChild1.index;
+
+				cChild1.parent = a.index;
+
+				a.bv.fatBounds = Union(b.bv.fatBounds, cChild1.bv.fatBounds);
+				c.bv.fatBounds = Union(a.bv.fatBounds, cChild0.bv.fatBounds);
+				
+				a.height = 1 + glm::max(b.height, cChild1.height);
+				c.height = 1 + glm::max(a.height, cChild0.height);
+			}
+			else
+			{
+				c.children[1] = cChild1.index;
+				a.children[1] = cChild0.index;
+
+				cChild0.parent = a.index;
+
+				a.bv.fatBounds = Union(b.bv.fatBounds, cChild0.bv.fatBounds);
+				c.bv.fatBounds = Union(a.bv.fatBounds, cChild1.bv.fatBounds);
+
+				a.height = 1 + glm::max(b.height, cChild0.height);
+				c.height = 1 + glm::max(a.height, cChild1.height);
+			}
+
+			return c.index;
+		}
+		else if (balance < -1)
+		{
+			// Rotate B up
+			BVHNode& bChild0 = tree[b.children[0]];
+			BVHNode& bChild1 = tree[b.children[1]];
+
+			// Swap a and b
+			b.children[0] = a.index;
+			b.parent = a.parent;
+			a.parent = b.index;
+
+			if (b.parent != NullIdx)
+			{
+				BVHNode& bParent = tree[b.parent];
+				if (bParent.children[0] == a.index)
+				{
+					bParent.children[0] = b.index;
+				}
+				else
+				{
+					ASSERT(bParent.children[1] == a.index, "Parent incorrect");
+					bParent.children[1] = b.index;
+				}
+			}
+			else
+			{
+				rootIdx = b.index;
+			}
+
+			// Rotate
+			if (bChild0.height > bChild1.height)
+			{
+				b.children[1] = bChild0.index;
+				a.children[0] = bChild1.index;
+				bChild1.parent = a.index;
+
+				a.bv.fatBounds = Union(c.bv.fatBounds, bChild1.bv.fatBounds);
+				b.bv.fatBounds = Union(a.bv.fatBounds, bChild0.bv.fatBounds);
+
+				a.height = 1 + glm::max(c.height, bChild1.height);
+				b.height = 1 + glm::max(a.height, bChild0.height);
+			}
+			else
+			{
+				b.children[1] = bChild1.index;
+				a.children[0] = bChild0.index;
+				bChild0.parent = a.index;
+
+				a.bv.fatBounds = Union(c.bv.fatBounds, bChild0.bv.fatBounds);
+				b.bv.fatBounds = Union(a.bv.fatBounds, bChild1.bv.fatBounds);
+
+				a.height = 1 + glm::max(c.height, bChild0.height);
+				b.height = 1 + glm::max(a.height, bChild1.height);
+			}
+
+			return b.index;
+		}
+		
+		return a.index;
 	}
 
 	BVHNode* BVHierarchy::FindBestSiblingFor(BVHNode const* newNode)
@@ -381,13 +438,118 @@ namespace drb::physics {
 			BVHNode& curr = tree[index];
 			ASSERT(curr.children[0] < tree.Capacity() && curr.children[1] < tree.Capacity(), "Internal nodes must have two valid children");
 
-			BVHNode& const child0 = tree[curr.children[0]];
-			BVHNode& const child1 = tree[curr.children[1]];
+			BVHNode const& child0 = tree[curr.children[0]];
+			BVHNode const& child1 = tree[curr.children[1]];
 
 			curr.height       = 1 + glm::max(child0.height, child1.height);
 			curr.bv.fatBounds = Union(child0.bv.fatBounds, child1.bv.fatBounds);
 
 			index = curr.parent;
+		}
+	}
+
+	Bool BVHierarchy::InsertLeaf(BVHNode* newNode)
+	{
+		// If this is the first node, it is the root
+		if (tree.Size() == 1)
+		{
+			rootIdx = newNode->index;
+			return true;
+		}
+
+		// ---------------------------------------------------------------------
+		// 1. find the best sibling for the new leaf
+		// ---------------------------------------------------------------------
+		BVHNode* sibling = FindBestSiblingFor(newNode);
+
+		// ---------------------------------------------------------------------
+		// 2. create the new parent
+		// ---------------------------------------------------------------------
+		Int32 oldParent = sibling->parent;
+
+		BVHNode* newParent = tree.Create(Union(newNode->bv.fatBounds, sibling->bv.fatBounds));
+		if (not newParent)
+		{
+			ASSERT(false, "Failed to create parent node.");
+			tree.Free(newNode->index);
+			return false;
+		}
+
+		newParent->parent = oldParent;
+		newParent->height = sibling->height + 1;
+
+		if (oldParent != NullIdx)
+		{
+			// The sibling was not the root
+			if (tree[oldParent].children[0] == sibling->index)
+			{
+				tree[oldParent].children[0] = newParent->index;
+			}
+			else
+			{
+				tree[oldParent].children[1] = newParent->index;
+			}
+			newParent->children[0] = sibling->index;
+			newParent->children[1] = newNode->index;
+			sibling->parent = newParent->index;
+			newNode->parent = newParent->index;
+		}
+		else
+		{
+			// The sibling was the root
+			newParent->children[0] = sibling->index;
+			newParent->children[1] = newNode->index;
+			sibling->parent = newParent->index;
+			newNode->parent = newParent->index;
+			rootIdx = newParent->index;
+		}
+
+		// ---------------------------------------------------------------------
+		// 3. walk up tree and refit BVs
+		// ---------------------------------------------------------------------
+		RefitBVsFrom(newNode->parent);
+		
+		return true;
+	}
+
+	void BVHierarchy::RemoveLeaf(Uint32 index)
+	{
+		if (index == rootIdx)
+		{
+			rootIdx = NullIdx;
+		}
+		else
+		{
+			BVHNode& curr = tree[index];
+
+			Uint32 const parentIdx = curr.parent;
+			Uint32 const grandparentIdx = tree[parentIdx].parent;
+			Uint32 const siblingIdx = (tree[parentIdx].children[0] == index) ?
+				tree[parentIdx].children[1] :
+				tree[parentIdx].children[0];
+
+			if (grandparentIdx != NullIdx)
+			{
+				BVHNode& grandparent = tree[grandparentIdx];
+				for (Uint8 i = 0; i < 2; ++i)
+				{
+					if (grandparent.children[i] == parentIdx)
+					{
+						grandparent.children[i] = siblingIdx;
+						break;
+					}
+				}
+				tree[siblingIdx].parent = grandparentIdx;
+				tree.Free(parentIdx);
+
+				RefitBVsFrom(grandparentIdx);
+			}
+			else
+			{
+				rootIdx = siblingIdx;
+				tree[siblingIdx].parent = NullIdx;
+				tree.Free(parentIdx);
+			}
 		}
 	}
 

@@ -4,6 +4,7 @@
 #include "PhysicsGeometry.h"
 #include "PhysicsGeometryQueries.h"
 #include "RigidBody.h"
+#include "DynamicBVH.h"
 
 namespace drb {
 	namespace physics {
@@ -11,9 +12,10 @@ namespace drb {
 		class World
 		{
 		public:
-			// Debugging only
+			// DEBUG BEGIN
 			friend class DebugRenderer;
 			friend class WorldStateRecorder;
+			// DEBUG END
 
 		private:
 			// Dynamic and kinematic objects -- capacity == maxBodies
@@ -25,8 +27,13 @@ namespace drb {
 			// Static collision geometry -- capacity == maxColliders
 			CollisionGeometry      colliders;
 
+			// Dynamic AABB hierarchy for broadphase collision detection
+			BVHierarchy			     bvhTree;
+			std::vector<BV::Handle>  bodyBVHandles; // parallel with bodies array
+
 			// Contacts between RigidBody collision geometries
 			// (use std::map to maintain consistent solver order)
+			// TODO: switch this to "Constraint Islands" approach
 			std::map<ManifoldKey, ContactManifold> contacts;
 
 			// Simulation variables
@@ -45,6 +52,8 @@ namespace drb {
 			// Manipulators
 			// -----------------------------------------------------------------
 			
+			void Init();
+
 			void Step(Float32 dt);
 			
 			inline RigidBody& CreateRigidBody();

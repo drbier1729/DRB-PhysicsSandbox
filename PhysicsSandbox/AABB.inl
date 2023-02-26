@@ -5,10 +5,20 @@ namespace drb {
 
 		inline Bool AABB::Intersects(AABB const& other) const
 		{
-			if (max.x < other.min.x || min.x > other.max.x) { return false; }
-			if (max.z < other.min.z || min.z > other.max.z) { return false; }
-			if (max.y < other.min.y || min.y > other.max.y) { return false; }
-			return true;
+			return not glm::any(glm::lessThan(max, other.min)) && 
+				   not glm::any(glm::lessThan(other.max, min));
+		}
+
+		inline Bool AABB::Contains(AABB const& other) const
+		{
+			return glm::all(glm::lessThanEqual(min, other.min)) &&
+				   glm::all(glm::lessThanEqual(other.max, max));
+		}
+
+		inline AABB AABB::Expanded(Float32 const scaleFactor) const
+		{
+			Vec3 const r{ scaleFactor };
+			return AABB{ .max = max + r, .min = min - r };
 		}
 
 		inline AABB AABB::Union(AABB const& other) const
@@ -17,6 +27,17 @@ namespace drb {
 				.max = glm::max(max, other.max),
 				.min = glm::min(min, other.min)
 			};
+		}
+
+		inline AABB AABB::MovedBy(Vec3 const& displacement) const
+		{
+			return AABB{ .max = max + displacement, .min = min + displacement };
+		}
+
+
+		inline AABB AABB::MovedTo(Vec3 const& newCenter) const
+		{
+			return AABB{ .max = newCenter + Halfwidths(), .min = newCenter - Halfwidths() };
 		}
 
 		// See Realtime Collision Detection by Ericson, Ch 4

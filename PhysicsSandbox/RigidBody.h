@@ -70,6 +70,14 @@ namespace drb {
 			inline RigidBody& AddRelativeForce(Vec3 const& localSpaceForce);
 			inline RigidBody& AddRelativeForce(Vec3 const& localSpaceForce, Vec3 const& localSpacePoint);
 
+			inline RigidBody& SetLinearVelocity(Vec3 const& newLinearVelocity);
+			inline RigidBody& SetAngularVelocity(Vec3 const& newAngularVelocity);
+
+			inline RigidBody& MoveTo(Vec3 const& target);
+			inline RigidBody& RotateTo(Quat const& target);
+			inline RigidBody& RotateTo(Mat3 const& target);
+			inline RigidBody& RotateTo(Vec3 const& targetEulerAngles);
+
 			// -----------------------------------------------------------------
 			// Accessors
 			// -----------------------------------------------------------------
@@ -99,18 +107,13 @@ namespace drb {
 			// is running because they invalidate cached contacts and the user
 			// could potentially move body into another body resulting in a
 			// dramatic resolution of the interpenetration on the next frame.
-			// Prefer to call these during scene setup, use Set___Velocity
-			// methods to control Kinematic bodies, and AddForce methods
-			// to control Dynamic bodies.
+			// Prefer to call these during scene setup. Instead, use SetVelocity 
+			// and AddForce methods to control Dynamic bodies, and Move method
+			// to control Kinematic bodies.
 			inline RigidBody& SetPosition(Vec3 const& newPosition);
 			inline RigidBody& SetOrientation(Vec3 const& newOrientationEulerAngles);
 			inline RigidBody& SetOrientation(Quat const& newOrientation);
 			inline RigidBody& SetOrientation(Mat3 const& newOrientation);
-
-			// these will only have an effect on Kinematic rigidbodies b/c
-			// velocity is computed from position for Dynamic rigidbodies
-			inline RigidBody& SetLinearVelocity(Vec3 const& newLinearVelocity);
-			inline RigidBody& SetAngularVelocity(Vec3 const& newAngularVelocity);
 
 			// also updates local inertia tensor
 			inline RigidBody& SetMass(Float32 mass);

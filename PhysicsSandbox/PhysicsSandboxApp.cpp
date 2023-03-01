@@ -369,10 +369,10 @@ namespace drb {
 		physics::Ray const r{ .p = mCam.GetPosition(), .d = rayWorld};
 
 		// Check which rigidbody, if any, the ray hit
-		auto result = mWorld.RayCastQuery(r);
+		auto const [proxy, result] = mWorld.RayCastQuery(r);
 
-		if (result.body) {
-			mHovered = result.body;
+		if (proxy.rb) {
+			mHovered = proxy.rb;
 		}
 		else {
 			mHovered = &mDummy;

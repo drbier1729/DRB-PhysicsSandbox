@@ -2,11 +2,10 @@
 #define DRB_GEOMETRYQUERYDATASTRUCTURES_H
 
 namespace drb::physics {
-	// fwd decls
+	// Fwd decls
 	class RigidBody;
 	struct CollisionShapeBase;
-	struct Ray;
-
+	
 	// ---------------------------------------------------------------------
 	// DATA STRUCTURES
 	// ---------------------------------------------------------------------
@@ -59,43 +58,30 @@ namespace drb::physics {
 	};
 
 
-	// Used as a key to uniquely identify a contact manifold
-	struct ManifoldKey
+	struct CollisionProxy
 	{
-		RigidBody* a, * b;
-		CollisionShapeBase const* aShape, * bShape;
+		Int64					  bvHandle     = -1;
+		RigidBody*                rb           = nullptr;
+		CollisionShapeBase const* shape        = nullptr;
 
-		ManifoldKey(RigidBody* a_, CollisionShapeBase const* aShape_, RigidBody* b_, CollisionShapeBase const* bShape_);
+		auto operator<=>(CollisionProxy const& other) const = default;
 	};
-	inline constexpr bool operator<(ManifoldKey const& A, ManifoldKey const& B) {
-		if (A.a < B.a) { return true; }
-		if (A.a == B.a && A.b < B.b) { return true; }
-		if (A.a == B.a && A.b == B.b && A.aShape < B.aShape) { return true; }
-		if (A.a == B.a && A.b == B.b && A.aShape == B.aShape && A.bShape < B.bShape) { return true; }
-		return false;
-	}
+	
+
+	// Pair of potentially colliding objects. Used as a key to uniquely identify a contact manifold
+	struct CollisionPair
+	{
+		CollisionProxy a, b;
+		CollisionPair(CollisionProxy const& a, CollisionProxy const& b);
+			
+		auto operator<=>(CollisionPair const& other) const = default;
+	};
 
 
 	struct ClosestPointsQuery {
 		Vec3    ptA = Vec3(NAN);						  // pt on shape a in world space
 		Vec3    ptB = Vec3(NAN);						  // pt on shape b in world space
 		Float32 d2 = std::numeric_limits<Float32>::max(); // sqr distance.  (d2 < 0)  -->  A and B intersecting
-	};
-
-
-	struct CastResult
-	{
-		Vec3    point = Vec3(std::numeric_limits<Float32>::max());
-		Float32 distance = std::numeric_limits<Float32>::max();
-		Bool	hit = false;
-	};
-
-
-	struct RayCastHit
-	{
-		CastResult                 info = {};
-		RigidBody*                 body = nullptr;
-		CollisionShapeBase const* shape = nullptr;
 	};
 }
 

@@ -206,9 +206,11 @@
     </ClCompile>
     <ClCompile Include="PhysicsSandboxApp.cpp" />
     <ClCompile Include="PhysicsWorld.cpp" />
+    <ClCompile Include="RayCast.cpp" />
     <ClCompile Include="RigidBody.cpp" />
     <ClCompile Include="SATGJK.cpp" />
     <ClCompile Include="SceneInspector.cpp" />
+    <ClCompile Include="StackAllocator.cpp" />
     <ClCompile Include="WorldStateRecorder.cpp" />
     <ClCompile Include="Shader.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
@@ -241,9 +243,11 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="PhysicsSandboxApp.h" />
     <ClInclude Include="PhysicsWorld.h" />
+    <ClInclude Include="RayCast.h" />
     <ClInclude Include="RigidBody.h" />
     <ClInclude Include="SATGJK.h" />
     <ClInclude Include="SceneInspector.h" />
+    <ClInclude Include="StackAllocator.h" />
     <ClInclude Include="WorldStateRecorder.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="TypeDefs.h" />
@@ -261,8 +265,10 @@
     <None Include="PhysicsGeometry.inl" />
     <None Include="PhysicsGeometryQueries.inl" />
     <None Include="PhysicsWorld.inl" />
+    <None Include="RayCast.inl" />
     <None Include="RigidBody.inl" />
     <None Include="SATGJK.inl" />
+    <None Include="StackAllocator.inl" />
     <None Include="WorldStateRecorder.inl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

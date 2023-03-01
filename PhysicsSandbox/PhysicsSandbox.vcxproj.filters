@@ -114,6 +114,12 @@
     <ClCompile Include="GeometryQueryDataStructures.cpp">
       <Filter>Source Files\Physics\Collision</Filter>
     </ClCompile>
+    <ClCompile Include="RayCast.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="StackAllocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -188,6 +194,12 @@
     <ClInclude Include="GeometryQueryDataStructures.h">
       <Filter>Header Files\Physics\Collision</Filter>
     </ClInclude>
+    <ClInclude Include="RayCast.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StackAllocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="RigidBody.inl">
@@ -231,6 +243,12 @@
     </None>
     <None Include="DynamicBVH.inl">
       <Filter>Header Files\Physics\Collision</Filter>
+    </None>
+    <None Include="RayCast.inl">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="StackAllocator.inl">
+      <Filter>Header Files</Filter>
     </None>
   </ItemGroup>
 </Project>

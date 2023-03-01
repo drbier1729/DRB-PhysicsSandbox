@@ -3,15 +3,42 @@
 namespace drb {
 	namespace physics {
 
+		inline AABB MakeAABB(CollisionShapeBase const& shape)
+		{
+			switch (shape.type)
+			{
+				break; case ColliderType::Sphere:
+				{
+					CollisionShape<Sphere> const* pShape = static_cast<CollisionShape<Sphere> const*>(&shape);
+					return MakeAABB(pShape->shape, shape.transform);
+				}
+				break; case ColliderType::Capsule:
+				{
+					CollisionShape<Capsule> const* pShape = static_cast<CollisionShape<Capsule> const*>(&shape);
+					return MakeAABB(pShape->shape, shape.transform);
+				}
+				break; case ColliderType::Convex:
+				{
+					CollisionShape<Convex> const* pShape = static_cast<CollisionShape<Convex> const*>(&shape);
+					return MakeAABB(pShape->shape, shape.transform);
+				}
+				break; default: {}
+			}
+			return AABB{};
+		}
+
 		template<Shape ShapeType>
 		CollisionShape<ShapeType>::CollisionShape(ShapeType const& shape_, Mat4 const& transform_, Float32 mass_)
 			: CollisionShapeBase{.transform = transform_, .mass = mass_, .type = ShapeType::type },
 			shape { shape_ }
 		{}
 
-		template<Shape T>
-		CollisionGeometry& CollisionGeometry::AddCollider(T&& shape, CollisionShapeBase&& options)
+		CollisionGeometry& CollisionGeometry::AddCollider(Shape auto&& shape, CollisionShapeBase&& options)
 		{
+			ASSERT(not locked, "Cannot add colliders after calling Bake");
+
+			using T = std::remove_cvref_t<decltype(shape)>;
+
 			if constexpr (std::is_same_v<T, Sphere>) {
 				spheres.emplace_back(
 					std::forward<Sphere>(shape),
@@ -31,15 +58,18 @@ namespace drb {
 					std::forward<Float32>(options.mass));
 			}
 			else {
-				static_assert(std::false_type<T>::value, "physics::Mesh not supported as RigidBody colliders");
+				static_assert(std::false_type<T>::value, "Not supported");
 			}
 
 			return *this;
 		}
 
-		template<Shape T>
-		CollisionGeometry& CollisionGeometry::AddCollider(T const& shape, CollisionShapeBase const& options)
+		CollisionGeometry& CollisionGeometry::AddCollider(Shape auto const& shape, CollisionShapeBase const& options)
 		{
+			ASSERT(not locked, "Cannot add colliders after calling Bake");
+		
+			using T = std::remove_cvref_t<decltype(shape)>;
+
 			if constexpr (std::is_same_v<T, Sphere>) {
 				spheres.emplace_back(shape, options.transform, options.mass);
 			}
@@ -50,7 +80,7 @@ namespace drb {
 				hulls.emplace_back(shape, options.transform, options.mass);
 			}
 			else {
-				static_assert(std::false_type<T>::value, "physics::Mesh not supported as RigidBody colliders");
+				static_assert(std::false_type<T>::value, "Not supported");
 			}
 
 			return *this;
@@ -59,6 +89,8 @@ namespace drb {
 		template<class Fn>
 		void CollisionGeometry::ForEachCollider(Fn fn)
 		{
+			ASSERT(not locked, "Cannot modify colliders after calling Bake");
+		
 			for (auto&& shape : spheres) {
 				fn(shape);
 			}
@@ -82,6 +114,19 @@ namespace drb {
 			for (auto&& shape : hulls) {
 				fn(shape);
 			}
+		}
+
+
+		inline Int32 CollisionGeometry::Size() const
+		{
+			return static_cast<Int32>(spheres.size() + capsules.size() + hulls.size());
+		}
+
+		inline void CollisionGeometry::Reserve(Int32 newCap)
+		{
+			spheres.reserve(newCap);
+			capsules.reserve(newCap);
+			hulls.reserve(newCap);
 		}
 
 		inline Mat3 ComputeInertiaTensor(Sphere const& sph) {
@@ -387,6 +432,89 @@ namespace drb {
 				.b = tr * Vec4(0, -cap.h, 0, 1),
 				.e = tr * Vec4(0, cap.h, 0, 1)
 			};
+		}
+
+
+		inline Vec3& Convex2::GetVert(VertID index)
+		{
+			ASSERT(data, "No data allocated");
+			ASSERT(0 <= index && index < data->verts.size(), "Index out of range");
+			return data->verts[index];
+		}
+		inline Vec3 const& Convex2::GetVert(VertID index) const
+		{
+			ASSERT(data, "No data allocated");
+			ASSERT(0 <= index && index < data->verts.size(), "Index out of range");
+			return data->verts[index];
+		}
+
+		inline Convex2::EdgeID Convex2::GetOneEdgeFrom(VertID index) const
+		{
+			ASSERT(data, "No data allocated");
+			ASSERT(0 <= index && index < data->verts.size(), "Index out of range");
+			return data->vertAdj[index];
+		}
+		inline SizeT       Convex2::NumVerts() const
+		{
+			ASSERT(data, "No data allocated");
+			return data->verts.size();
+		}
+
+		inline Convex2::HalfEdge& Convex2::GetEdge(EdgeID index)
+		{
+			ASSERT(data, "No data allocated");
+			ASSERT(0 <= index && index < data->edges.size(), "Index out of range");
+			return data->edges[index];
+		}
+
+		inline Convex2::HalfEdge const& Convex2::GetEdge(EdgeID index) const
+		{
+			ASSERT(data, "No data allocated");
+			ASSERT(0 <= index && index < data->edges.size(), "Index out of range");
+			return data->edges[index];
+		}
+		inline SizeT Convex2::NumEdges() const
+		{
+			ASSERT(data, "No data allocated");
+			return data->edges.size();
+		}
+
+		inline Convex2::Face& Convex2::GetFace(FaceID index)
+		{
+			ASSERT(data, "No data allocated");
+			ASSERT(0 <= index && index < data->faces.size(), "Index out of range");
+			return data->faces[index];
+		}
+		inline Convex2::Face const& Convex2::GetFace(FaceID index) const
+		{
+			ASSERT(data, "No data allocated");
+			ASSERT(0 <= index && index < data->faces.size(), "Index out of range");
+			return data->faces[index];
+		}
+		inline SizeT Convex2::NumFaces() const
+		{
+			ASSERT(data, "No data allocated");
+			return data->faces.size();
+		}
+		inline std::span<Vec3 const> Convex2::GetVerts()
+		{
+			ASSERT(data, "No data allocated");
+			return data->verts;
+		}
+		inline std::span<Convex2::EdgeID const> Convex2::GetVertAdjs()
+		{
+			ASSERT(data, "No data allocated");
+			return data->vertAdj;
+		}
+		inline std::span<Convex2::HalfEdge const> Convex2::GetEdges()
+		{
+			ASSERT(data, "No data allocated");
+			return data->edges;
+		}
+		inline std::span<Convex2::Face const> Convex2::GetFaces()
+		{
+			ASSERT(data, "No data allocated");
+			return data->faces;
 		}
 	}
 }

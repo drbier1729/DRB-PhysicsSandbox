@@ -37,6 +37,7 @@
 #include <fstream>
 #include <thread>
 #include <concepts>
+#include <compare>
 #include <span>
 #include <memory>
 #include <initializer_list>
@@ -48,6 +49,7 @@
 #include <queue>
 #include <unordered_map>
 #include <string>
+#include <variant>
 #include <chrono>
 #include <type_traits>
 

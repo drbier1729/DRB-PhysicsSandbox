@@ -93,6 +93,33 @@ namespace TEST
 			}
 
 		}
+
+		TEST_METHOD(Convex2Test)
+		{
+			using drb::physics::Convex2;
+
+			{
+				Convex2 cvx{ 9, 13, 6 };
+
+				for (int i = 0; i < cvx.NumVerts(); ++i)
+				{
+					cvx.GetVert(i) = drb::Vec3(i);
+				}
+
+				for (int i = 0; i < cvx.NumEdges(); ++i)
+				{
+					unsigned char v = static_cast<unsigned char>(i);
+					cvx.GetEdge(i) = Convex2::HalfEdge{ v, v, v, v };
+				}
+
+				for (int i = 0; i < cvx.NumFaces(); ++i)
+				{
+					cvx.GetFace(i) = Convex2::Face{ 0, drb::physics::Plane{.n = drb::Vec3(i), .d = -1.0f * i} };
+				}
+			} // destructor called
+
+			Assert::IsTrue(true, L"Just a place for a breakpoint");
+		}
 		
 	};
 }

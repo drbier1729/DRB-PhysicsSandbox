@@ -60,20 +60,45 @@ namespace drb::physics {
 		}
 
 
-		// ---------------------------------------------------------------------
-		// MANIFOLD
-		// ---------------------------------------------------------------------
 
-		ManifoldKey::ManifoldKey(RigidBody* a_, CollisionShapeBase const* aShape_, RigidBody* b_, CollisionShapeBase const* bShape_)
-			: a{ a_ }, aShape{ aShape_ }, b{ b_ }, bShape{ bShape_ }
+		// ---------------------------------------------------------------------
+		// TOP LEVEL DISPATCH
+		// ---------------------------------------------------------------------
+		
+#define DEFN_COLLIDE_FCN(T, U) static ContactManifold Collide##T##U##(CollisionShapeBase const& A, Mat4 const& trA, CollisionShapeBase const& B, Mat4 const& trB) \
+		{ \
+			CollisionShape<T> const& castA = static_cast<CollisionShape<T> const&>(A); \
+			CollisionShape<U> const& castB = static_cast<CollisionShape<U> const&>(B); \
+			return Collide(castA.shape, trA * castA.transform, castB.shape, trB * castB.transform); \
+		}
+		DEFN_COLLIDE_FCN(Sphere, Sphere)
+		DEFN_COLLIDE_FCN(Sphere, Capsule)
+		DEFN_COLLIDE_FCN(Sphere, Convex)
+		DEFN_COLLIDE_FCN(Capsule, Sphere)
+		DEFN_COLLIDE_FCN(Capsule, Capsule)
+		DEFN_COLLIDE_FCN(Capsule, Convex)
+		DEFN_COLLIDE_FCN(Convex, Sphere)
+		DEFN_COLLIDE_FCN(Convex, Capsule)
+		DEFN_COLLIDE_FCN(Convex, Convex)
+
+#undef DEFN_COLLIDE_FCN
+			
+		ContactManifold Collide(CollisionShapeBase const& A, Mat4 const& trA, CollisionShapeBase const& B, Mat4 const& trB)
 		{
-			ASSERT(a != b, "RigidBodies a and b must be unique.");
+			using Fn = decltype(&CollideCapsuleCapsule);
+			static constexpr Fn fcnTable[3][3] = {
+				{&CollideSphereSphere,  &CollideSphereCapsule,  &CollideSphereConvex},
+				{&CollideCapsuleSphere, &CollideCapsuleCapsule, &CollideCapsuleConvex},
+				{&CollideConvexSphere,  &CollideConvexCapsule,  &CollideConvexConvex}
+			};
 
-			if (a > b)
-			{
-				std::swap(a, b);
-				std::swap(aShape, bShape);
-			}
+			Int32 const idxA = static_cast<Int32>(A.type) - 1;
+			Int32 const idxB = static_cast<Int32>(B.type) - 1;
+
+			ASSERT(0 <= idxA && idxA < 3, "Index A out of range. Bad Type.");
+			ASSERT(0 <= idxB && idxB < 3, "Index B out of range. Bad Type.");
+
+			return fcnTable[idxA][idxB](A, trA, B, trB);
 		}
 
 
@@ -706,7 +731,7 @@ namespace drb::physics {
 				Int32 const numCandidates = static_cast<Int32>(incFacePoly.verts.size());
 				if (numCandidates == 0) { return m; }
 
-				static constexpr Int32 maxCandidates = 64;
+				static constexpr Uint32 maxCandidates = 64;
 				ASSERT(numCandidates < maxCandidates, "Too many potential contacts. You probably want to reduce the complexity of your collision geometry.");
 
 				// First, project contact points onto reference face, and identify the deepest 
@@ -737,7 +762,7 @@ namespace drb::physics {
 				// manifold directly from incFacePoly
 				if (numCandidates <= 4)
 				{
-					Int32 curr = (p0Idx + 1) % numCandidates;
+					Uint32 curr = (p0Idx + 1) % numCandidates;
 					while (curr != p0Idx)
 					{
 						m.contacts[m.numContacts++] = Contact{

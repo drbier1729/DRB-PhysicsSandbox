@@ -31,6 +31,28 @@ namespace drb {
 			return *this;
 		}
 
+
+		inline RigidBody& RigidBody::MoveTo(Vec3 const& target)
+		{
+			prevPosition = position;
+			position = target;
+			return *this;
+		}
+		inline RigidBody& RigidBody::RotateTo(Quat const& target)
+		{
+			prevOrientation = orientation;
+			orientation = target;
+			return *this;
+		}
+		inline RigidBody& RigidBody::RotateTo(Mat3 const& target)
+		{
+			return RotateTo(glm::toQuat(target));
+		}
+		inline RigidBody& RigidBody::RotateTo(Vec3 const& targetEulerAngles)
+		{
+			return RotateTo(Quat(targetEulerAngles));
+		}
+
 		inline Vec3 RigidBody::GetPosition() const
 		{
 			return position;

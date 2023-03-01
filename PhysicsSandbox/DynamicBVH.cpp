@@ -1,51 +1,58 @@
 #include "pch.h"
 #include "DynamicBVH.h"
 
-#include "PhysicsGeometry.h"
 
 namespace drb::physics {
 
 	static inline AABB Union(AABB const& a, AABB const& b);
-	static inline BV::Handle MakeHandle(Uint32 index, Uint32 version);
 
-	BV::Handle BVHierarchy::Insert(AABB const& aabb, void* userData) 
+	BVHandle BVHierarchy::Insert(AABB const& aabb, void* userData) 
 	{ 	
 		BVHNode* newNode = tree.Create(aabb, userData);
 		if (not newNode) 
 		{
 			ASSERT(false, "Failed to create node");
-			return std::numeric_limits<BV::Handle>::max();
+			return BVHandle{ -1 };
 		}
 		
 		newNode->moved = true;
 		Bool const success = InsertLeaf(newNode);
 
 		return success ? 
-			MakeHandle(newNode->index, newNode->version) : 
-			std::numeric_limits<BV::Handle>::max();
+			BVHandle{ newNode->index, newNode->version } :
+			BVHandle{ -1 };
 	}
 	
-	void  BVHierarchy::Remove(BV::Handle bvHandle) 
+	void  BVHierarchy::Remove(BVHandle bvHandle) 
 	{
-		if (Uint32 index = NullIdx; ValidHandle(bvHandle, index))
+		if (Int32 index = NullIdx; ValidHandle(bvHandle, index))
 		{
 			RemoveLeaf(index);
 			tree.Free(index);
 		}
 	}
 
-	BV const* BVHierarchy::Find(BV::Handle bvHandle) const
+	BVHNode const* BVHierarchy::Find(BVHandle bvHandle) const
 	{
-		if (Uint32 index = NullIdx; ValidHandle(bvHandle, index))
+		if (Int32 index = NullIdx; ValidHandle(bvHandle, index))
 		{
-			return &tree[index].bv;
+			return &tree[index];
 		}
 		return nullptr;
 	}
 
-	Bool BVHierarchy::MoveBoundingVolume(BV::Handle handle, AABB const& aabb, Vec3 const& displacement)
+
+	void BVHierarchy::SetMoved(BVHandle bvHandle, Bool val)
 	{
-		if (Uint32 index = NullIdx; ValidHandle(handle, index))
+		if (Int32 index = NullIdx; ValidHandle(bvHandle, index))
+		{
+			tree[index].moved = val;
+		}
+	}
+
+	Bool BVHierarchy::MoveBoundingVolume(BVHandle handle, AABB const& aabb, Vec3 const& displacement)
+	{
+		if (Int32 index = NullIdx; ValidHandle(handle, index))
 		{
 			ASSERT(tree[index].IsLeaf(), "Cannot move internal nodes");
 
@@ -68,6 +75,8 @@ namespace drb::physics {
 					return false;
 				}
 			}
+			
+			// Else: remove and reinsert the leaf
 
 			RemoveLeaf(index);
 
@@ -75,13 +84,15 @@ namespace drb::physics {
 			n.bv.fatBounds = predictedAABB;
 
 			InsertLeaf(&n);
-			n.moved = true;			
+			
+			n.moved = true;
+			return true;
 		}
 
 		return false;
 	}
 
-	void BVHierarchy::Reserve(Uint32 objectCount)
+	void BVHierarchy::Reserve(Int32 objectCount)
 	{
 		// reserve enough nodes for a tree with objectCount leaves
 		tree.Reserve(objectCount * 2);
@@ -93,6 +104,7 @@ namespace drb::physics {
 		rootIdx = NullIdx;
 	}
 
+	
 	// -------------------------------------------------------------------------
 	// Helpers
 	// -------------------------------------------------------------------------
@@ -120,7 +132,7 @@ namespace drb::physics {
 		std::memset(nodes, 0, capacity * sizeof(BVHNode));
 
 		// Reset free list
-		for (Uint32 i = 0; (i + 1) < capacity; ++i)
+		for (Int32 i = 0; (i + 1) < capacity; ++i)
 		{
 			nodes[i].nextFree = i + 1;
 			nodes[i].height = NullIdx;
@@ -132,14 +144,14 @@ namespace drb::physics {
 		firstFree = 0;
 	}
 
-	BVHNode& BVHierarchy::NodePool::operator[](Uint32 index)
+	BVHNode& BVHierarchy::NodePool::operator[](Int32 index)
 	{
 		ASSERT(index < capacity, "Index out of range");
 		ASSERT(not nodes[index].IsFree(), "Node is dead");
 		return nodes[index];
 	}
 
-	BVHNode const& BVHierarchy::NodePool::operator[](Uint32 index) const
+	BVHNode const& BVHierarchy::NodePool::operator[](Int32 index) const
 	{
 		ASSERT(index < capacity, "Index out of range");
 		ASSERT(not nodes[index].IsFree(), "Node is dead");
@@ -155,7 +167,7 @@ namespace drb::physics {
 			capacity = Reserve(capacity * 2);
 		}
 
-		Uint32 const index = firstFree;
+		Int32 const index = firstFree;
 		ASSERT(index < capacity, "Bad index");
 
 		BVHNode& newNode = nodes[index];
@@ -166,7 +178,7 @@ namespace drb::physics {
 		return &newNode;
 	}
 
-	void  BVHierarchy::NodePool::Free(Uint32 nodeIndex)
+	void  BVHierarchy::NodePool::Free(Int32 nodeIndex)
 	{
 		ASSERT(nodeIndex < capacity, "Bad index");
 		ASSERT(size > 0, "Empty array");
@@ -177,13 +189,13 @@ namespace drb::physics {
 		--size;
 	}
 
-	Uint32 BVHierarchy::NodePool::Size() const { return size; }
+	Int32 BVHierarchy::NodePool::Size() const { return size; }
 
-	Uint32 BVHierarchy::NodePool::Capacity() const { return capacity; }
+	Int32 BVHierarchy::NodePool::Capacity() const { return capacity; }
 
-	Uint32 BVHierarchy::NodePool::Reserve(Uint32 newCapacity)
+	Int32 BVHierarchy::NodePool::Reserve(Int32 newCapacity)
 	{
-		static constexpr Uint32 maxCapacity = 1024u * 1024u;
+		static constexpr Int32 maxCapacity = 1024u * 1024u;
 		
 		if (capacity >= newCapacity || capacity == maxCapacity)
 		{
@@ -194,8 +206,6 @@ namespace drb::physics {
 
 		if (capacity == 0)
 		{
-			ASSERT(size == 0, "Size invalid");
-
 			capacity = glm::max(minCapacity, newCapacity);
 			nodes    = (BVHNode*)std::malloc(capacity * sizeof(BVHNode));
 
@@ -208,7 +218,7 @@ namespace drb::physics {
 		else
 		{
 			BVHNode* const oldNodes = nodes;
-			Uint32 const   oldCap   = capacity;
+			Int32 const    oldCap   = capacity;
 
 			// Grow by at least by a factor of 2, or up to maxCapacity (which ever is less)
 			capacity = glm::min(maxCapacity, glm::max(newCapacity, capacity * 2));
@@ -226,11 +236,13 @@ namespace drb::physics {
 			std::free(oldNodes);
 		}
 
+		ASSERT(size < capacity && capacity > 0, "Something went wrong");
+
 		// Zero the new nodes
 		std::memset(nodes + size, 0, (capacity - size) * sizeof(BVHNode));
 
 		// Set up free list
-		for (Uint32 i = size; (i + 1) < capacity; ++i)
+		for (Int32 i = size; (i + 1) < capacity; ++i)
 		{
 			nodes[i].nextFree = i + 1;
 			nodes[i].height = NullIdx;
@@ -246,7 +258,7 @@ namespace drb::physics {
 
 	// Performs left or right rotation if subtree with root at index is
 	// imbalanced. Returns the index of the new root of the subtree.
-	Uint32 BVHierarchy::Balance(Uint32 aIdx)
+	Int32 BVHierarchy::Balance(Int32 aIdx)
 	{
 		ASSERT(aIdx < tree.Capacity(), "Index invalid");
 
@@ -384,8 +396,8 @@ namespace drb::physics {
 	{
 		AABB const    nnBounds = newNode->bv.fatBounds;
 		
-		Uint32 idx = rootIdx;
-		Uint32 prevIdx = NullIdx;
+		Int32 idx = rootIdx;
+		Int32 prevIdx = NullIdx;
 		while (not tree[idx].IsLeaf() && idx != prevIdx)
 		{
 			prevIdx = idx;
@@ -399,7 +411,7 @@ namespace drb::physics {
 			Float32       directCost    = 2.0f * combinedSA;
 
 			// Descend according to minimum cost, break if no children are better than this node
-			for (Uint8 i = 0; i < 2; ++i)
+			for (Int8 i = 0; i < 2; ++i)
 			{
 				ASSERT(curr.children[i] != NullIdx, "Internal nodes must have 2 valid children");
 
@@ -429,7 +441,7 @@ namespace drb::physics {
 		return &tree[idx];
 	}
 
-	void BVHierarchy::RefitBVsFrom(Uint32 index)
+	void BVHierarchy::RefitBVsFrom(Int32 index)
 	{
 		while (index != NullIdx)
 		{
@@ -512,7 +524,7 @@ namespace drb::physics {
 		return true;
 	}
 
-	void BVHierarchy::RemoveLeaf(Uint32 index)
+	void BVHierarchy::RemoveLeaf(Int32 index)
 	{
 		if (index == rootIdx)
 		{
@@ -522,16 +534,16 @@ namespace drb::physics {
 		{
 			BVHNode& curr = tree[index];
 
-			Uint32 const parentIdx = curr.parent;
-			Uint32 const grandparentIdx = tree[parentIdx].parent;
-			Uint32 const siblingIdx = (tree[parentIdx].children[0] == index) ?
+			Int32 const parentIdx = curr.parent;
+			Int32 const grandparentIdx = tree[parentIdx].parent;
+			Int32 const siblingIdx = (tree[parentIdx].children[0] == index) ?
 				tree[parentIdx].children[1] :
 				tree[parentIdx].children[0];
 
 			if (grandparentIdx != NullIdx)
 			{
 				BVHNode& grandparent = tree[grandparentIdx];
-				for (Uint8 i = 0; i < 2; ++i)
+				for (Int8 i = 0; i < 2; ++i)
 				{
 					if (grandparent.children[i] == parentIdx)
 					{
@@ -553,26 +565,23 @@ namespace drb::physics {
 		}
 	}
 
-
-	Bool BVHierarchy::ValidHandle(BV::Handle bvHandle, Uint32& indexOut) const
+	Bool BVHierarchy::ValidHandle(BVHandle bvHandle, Int32& indexOut) const
 	{
-		static constexpr auto mask32b = 0xFFFFFFFF;
+		Int32 const idx = bvHandle.info.index;
 
-		indexOut             = static_cast<Uint32>( bvHandle & mask32b );
-		Uint32 const version = static_cast<Uint32>( bvHandle >> 32 );
+		if (0 <= idx && idx < tree.Capacity())
+		{
+			indexOut = idx;
+			return tree[idx].version == bvHandle.info.version &&
+				   tree[idx].height != NullIdx;
+		}
 
-		return indexOut < tree.Capacity() && 
-			tree[indexOut].version == version && 
-			tree[indexOut].height != NullIdx;
+		indexOut = NullIdx;
+		return false;
 	}
 
 	static inline AABB Union(AABB const& a, AABB const& b)
 	{
 		return a.Union(b);
-	}
-
-	static inline BV::Handle MakeHandle(Uint32 index, Uint32 version)
-	{
-		return static_cast<Uint64>(index) | (static_cast<Uint64>(version) << 32);
 	}
 }

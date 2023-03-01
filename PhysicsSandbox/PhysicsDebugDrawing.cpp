@@ -116,13 +116,14 @@ namespace drb {
 		
 		DebugRenderer const& DebugRenderer::DrawOneRigidBody(RigidBody const& rb, Float32 frameInterpolation, ColorInfo const& ci) const
 		{
+			if (not rb.geometry) { return *this; }
+
 			Vec3 const interpolatedPos = frameInterpolation * rb.position + (1.0f - frameInterpolation) * rb.prevPosition;
 			Quat const interpolatedRot = frameInterpolation * rb.orientation + (1.0f - frameInterpolation) * rb.prevOrientation;
 			Mat4 const rbTr = glm::translate(Mat4(1), interpolatedPos) * glm::toMat4(interpolatedRot);
 
 			Mat4 modelTr{};
 			AABB b{};
-
 
 			for (auto&& s : rb.geometry->spheres) {
 				modelTr = rbTr * s.transform;
@@ -190,13 +191,15 @@ namespace drb {
 
 		DebugRenderer const& DebugRenderer::HighlightOneRigidBody(RigidBody const& rb, Float32 frameInterpolation, ColorInfo const& ci) const
 		{
+			if (not rb.geometry) { return *this; }
+
 			Vec3 const interpolatedPos = frameInterpolation * rb.position + (1.0f - frameInterpolation) * rb.prevPosition;
 			Quat const interpolatedRot = frameInterpolation * rb.orientation + (1.0f - frameInterpolation) * rb.prevOrientation;
 			Mat4 const rbTr = glm::translate(Mat4(1), interpolatedPos) * glm::toMat4(interpolatedRot);
 
 			Mat4 modelTr{};
 			Mat4 const scale = glm::scale(Mat4(1), Vec3(1.03f));
-
+			
 			for (auto&& s : rb.geometry->spheres) {
 				modelTr = rbTr * s.transform * scale;
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };

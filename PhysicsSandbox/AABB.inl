@@ -5,14 +5,38 @@ namespace drb {
 
 		inline Bool AABB::Intersects(AABB const& other) const
 		{
-			return not glm::any(glm::lessThan(max, other.min)) && 
-				   not glm::any(glm::lessThan(other.max, min));
+			if (max.x < other.min.x || other.max.x < min.x) { return false; }
+			if (max.y < other.min.y || other.max.y < min.y) { return false; }
+			if (max.z < other.min.z || other.max.z < min.z) { return false; }
+			return true;
+			
+			//return not glm::any(glm::lessThan(max, other.min)) && 
+			//	   not glm::any(glm::lessThan(other.max, min));
 		}
 
 		inline Bool AABB::Contains(AABB const& other) const
 		{
-			return glm::all(glm::lessThanEqual(min, other.min)) &&
-				   glm::all(glm::lessThanEqual(other.max, max));
+			return min.x <= other.min.x &&
+				min.y <= other.min.y &&
+				min.z <= other.min.z &&
+				max.x >= other.max.x &&
+				max.y >= other.max.y &&
+				max.z >= other.max.z;
+
+			//return glm::all(glm::lessThanEqual(min, other.min)) &&
+			//	   glm::all(glm::lessThanEqual(other.max, max));
+		}
+
+		inline Float32 AABB::DistSquaredFromPoint(Vec3 const& pt) const
+		{
+			Float32 d2 = 0.0f;
+			for (Uint32 i = 0; i < 3; ++i)
+			{
+				Float32 const v = pt[i];
+				if (v < min[i]) { d2 += (min[i] - v) * (min[i] - v); }
+				if (v > max[i]) { d2 += (v - max[i]) * (v - max[i]); }
+			}
+			return d2;
 		}
 
 		inline AABB AABB::Expanded(Float32 const scaleFactor) const
@@ -38,6 +62,11 @@ namespace drb {
 		inline AABB AABB::MovedTo(Vec3 const& newCenter) const
 		{
 			return AABB{ .max = newCenter + Halfwidths(), .min = newCenter - Halfwidths() };
+		}
+
+		inline AABB AABB::Transformed(Mat4 const& transform) const
+		{
+			return Transformed(Mat3(transform), transform[3]);
 		}
 
 		// See Realtime Collision Detection by Ericson, Ch 4

@@ -8,10 +8,11 @@ namespace drb {
 
 		void RigidBody::ProjectPositions(Float32 h)
 		{
-			if (type == Type::Kinematic) { return; }
-
 			static constexpr Vec3 gravity{ 0.0f, -9.8f, 0.0f };
 
+			if (type == Type::Kinematic) { return; }
+
+			// Temporarily update velocities to project position and orientation
 			prevPosition = position;
 			linearVelocity += h * (accumulatedForces * invMass + gravityScale * gravity);
 			position += h * linearVelocity;
@@ -28,9 +29,9 @@ namespace drb {
 #ifdef DRB_PHYSICS_XPBD
 		void RigidBody::ProjectVelocities(Float32 h)
 		{
-			if (type == Type::Kinematic) { return; }
-			
-			linearVelocity = (position - prevPosition) / h;
+			// Recompute velocities based on dx and dq -- rough approximation
+			Vec3 const dx = position - prevPosition;
+			linearVelocity = dx / h;
 
 			Quat const dq = orientation * glm::inverse(prevOrientation);
 			angularVelocity = 2.0f * Vec3(dq.x, dq.y, dq.z) / h;
@@ -41,11 +42,11 @@ namespace drb {
 		{
 			if (type == Type::Kinematic) { return; }
 
-			// Position update
+			// Update position
 			prevPosition = position;
 			position += h * linearVelocity;
 
-			// Orientation update
+			// Update orientation
 			prevOrientation = orientation;
 			Quat const dq{ 0, angularVelocity.x , angularVelocity.y, angularVelocity.z };
 			orientation += h * 0.5f * dq * orientation;
@@ -57,22 +58,33 @@ namespace drb {
 		{
 			static constexpr Vec3 gravity{ 0.0f, -9.8f, 0.0f };
 
-			if (type == Type::Kinematic) { return; }
+			if (type == Type::Kinematic) 
+			{ 
+				// Compute velocities from dx and dq -- rough approximation
+				Vec3 const dx = position - prevPosition;
+				linearVelocity = dx / h;
 
-			// Update linear velocity and project centroid position
-			linearVelocity += h * (gravity * gravityScale + accumulatedForces * invMass);
-			linearVelocity *= (1.0f - linearDamping);
+				Quat const dq = orientation * glm::inverse(prevOrientation);
+				angularVelocity = 2.0f * Vec3(dq.x, dq.y, dq.z) / h;
+				if (dq.w < 0.0f) { angularVelocity *= -1.0f; }
+			}
+			else
+			{
+				// Update linear velocity
+				linearVelocity += h * (gravity * gravityScale + accumulatedForces * invMass);
+				linearVelocity *= (1.0f - linearDamping);
 
 
-			// Update angular velocity and project rotation
-			Vec3 const w = accumulatedTorques - glm::cross(angularVelocity, GetInertiaTensor() * angularVelocity); // gyroscopic term may need to be ignored
-			angularVelocity += h * GetInverseInertiaTensor() * w;
-			angularVelocity *= (1.0f - angularDamping);
+				// Update angular velocity
+				Vec3 const w = accumulatedTorques - glm::cross(angularVelocity, GetInertiaTensor() * angularVelocity); // gyroscopic term may need to be ignored
+				angularVelocity += h * GetInverseInertiaTensor() * w;
+				angularVelocity *= (1.0f - angularDamping);
 
 
-			// Zero out forces and torque
-			accumulatedForces = Vec3(0);
-			accumulatedTorques = Vec3(0);
+				// Zero out forces and torque
+				accumulatedForces = Vec3(0);
+				accumulatedTorques = Vec3(0);
+			}
 
 		}
 	}

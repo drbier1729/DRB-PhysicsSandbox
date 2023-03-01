@@ -11,6 +11,12 @@ namespace drb {
 		// COLLISION FUNCTIONS
 		// ---------------------------------------------------------------------
 
+		// Top level collision function -- casts the argument shapes to the appropriate
+		// types then calls one of the overloads below. Note that since CollisionShapeBase
+		// holds a local transform, the trA and trB arguments will be multiplied into
+		// A.transform and B.transform.
+		ContactManifold Collide(CollisionShapeBase const& A, Mat4 const& trA, CollisionShapeBase const& B, Mat4 const& trB);
+
 		ContactManifold Collide(Sphere const& A, Mat4 const& trA, Sphere const& B, Mat4 const& trB);
 		ContactManifold Collide(Sphere const& A, Mat4 const& trA, Capsule const& B, Mat4 const& trB);
 		ContactManifold Collide(Sphere const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
@@ -34,8 +40,6 @@ namespace drb {
 		// ---------------------------------------------------------------------
 		// OTHER QUERIES
 		// ---------------------------------------------------------------------
-		
-		inline CastResult      RayCast(Ray const& r, AABB const& aabb);
 
 		inline Bool            Intersect(Segment const& seg, Plane const& plane, float& t, Vec3& q);
 		

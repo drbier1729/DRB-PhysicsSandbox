@@ -105,7 +105,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <AdditionalLibraryDirectories>$(SolutionDir)PhysicsSandbox\$(Platform)\$(Configuration)\;$(SolutionDir)deps\lib\;$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DynamicBVH.obj;SATGJK.obj;PhysicsGeometry.obj;PhysicsGeometryQueries.obj;RigidBody.obj;pch.obj;opengl32.lib;glew32.lib;glfw3.lib;assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>StackAllocator.obj;DynamicBVH.obj;SATGJK.obj;PhysicsGeometry.obj;PhysicsGeometryQueries.obj;RigidBody.obj;pch.obj;opengl32.lib;glew32.lib;glfw3.lib;assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -160,7 +160,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>$(SolutionDir)PhysicsSandbox\$(Platform)\$(Configuration)\;$(SolutionDir)deps\lib\;$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DynamicBVH.obj;SATGJK.obj;PhysicsGeometry.obj;PhysicsGeometryQueries.obj;RigidBody.obj;pch.obj;opengl32.lib;glew32.lib;glfw3.lib;assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>StackAllocator.obj;DynamicBVH.obj;SATGJK.obj;PhysicsGeometry.obj;PhysicsGeometryQueries.obj;RigidBody.obj;pch.obj;opengl32.lib;glew32.lib;glfw3.lib;assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

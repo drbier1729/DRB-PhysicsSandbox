@@ -115,10 +115,10 @@
       <Filter>Source Files\Physics\Collision</Filter>
     </ClCompile>
     <ClCompile Include="RayCast.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Physics\Collision</Filter>
     </ClCompile>
     <ClCompile Include="StackAllocator.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Engine</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -195,10 +195,10 @@
       <Filter>Header Files\Physics\Collision</Filter>
     </ClInclude>
     <ClInclude Include="RayCast.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Physics\Collision</Filter>
     </ClInclude>
     <ClInclude Include="StackAllocator.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Engine</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -245,10 +245,10 @@
       <Filter>Header Files\Physics\Collision</Filter>
     </None>
     <None Include="RayCast.inl">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Physics\Collision</Filter>
     </None>
     <None Include="StackAllocator.inl">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Engine</Filter>
     </None>
   </ItemGroup>
 </Project>

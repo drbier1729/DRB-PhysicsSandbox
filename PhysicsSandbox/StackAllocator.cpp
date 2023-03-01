@@ -21,8 +21,9 @@ namespace drb
 
 	StackAllocator& StackAllocator::operator=(StackAllocator const& src)
 	{
+		if (this == &src) { return *this; }
+		
 		Clear();
-
 		arena.mem = (std::byte*)(src.arena.mem) + src.arena.size;
 		arena.size = 0;
 		arena.capacity = src.arena.capacity - src.arena.size;
@@ -36,9 +37,10 @@ namespace drb
 
 	StackAllocator& StackAllocator::operator=(StackAllocator&& src) noexcept
 	{
+		if (this == &src) { return *this; }
+
 		Clear();
 		arena = src.Release();
-
 		return *this;
 	}
 

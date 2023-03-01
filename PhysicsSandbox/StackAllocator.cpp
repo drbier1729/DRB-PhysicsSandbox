@@ -5,7 +5,7 @@ namespace drb
 {
 	StackAllocator::StackAllocator(void* arena_, SizeT capacity_)
 		: arena{ 
-			.mem = arena_, 
+			.mem = static_cast<std::byte*>(arena_), 
 			.size = 0, 
 			.capacity = capacity_ 
 		}
@@ -13,7 +13,7 @@ namespace drb
 
 	StackAllocator::StackAllocator(StackAllocator const& src)
 		: arena{ 
-			.mem = (std::byte*)src.arena.mem + src.arena.size,
+			.mem = src.arena.mem + src.arena.size,
 			.size = 0,
 			.capacity = src.arena.capacity - src.arena.size
 		}
@@ -24,7 +24,7 @@ namespace drb
 		if (this == &src) { return *this; }
 		
 		Clear();
-		arena.mem = (std::byte*)(src.arena.mem) + src.arena.size;
+		arena.mem = src.arena.mem + src.arena.size;
 		arena.size = 0;
 		arena.capacity = src.arena.capacity - src.arena.size;
 
@@ -53,7 +53,7 @@ namespace drb
 	{
 		ASSERT(arena.size <= arena.capacity, "Invalid size");
 
-		void* marker = (void*)( (std::byte*)(arena.mem) + arena.size);
+		void* marker = reinterpret_cast<void*>(arena.mem + arena.size);
 		
 		SizeT const preRemaining  = arena.capacity - arena.size;
 		SizeT       postRemaining = preRemaining;
@@ -81,7 +81,7 @@ namespace drb
 	void StackAllocator::Reset(void* newArena, SizeT newCapacity)
 	{
 		Clear();
-		arena.mem = newArena;
+		arena.mem = static_cast<std::byte*>(newArena);
 		arena.capacity = newCapacity;
 	}
 

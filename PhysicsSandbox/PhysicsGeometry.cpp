@@ -12,7 +12,7 @@ namespace drb {
 		namespace util {
 			// This is useful bc CollisionShapes will often/always be fixed to a RigidBody and the
 			// origin (in the local space of the RigidBody) will be the RigidBody's center of mass.
-			template<Shape T> 
+			template<Shape T>
 			static Mat3 InertiaTensorAboutOrigin(CollisionShape<T> const& s)
 			{
 				// Rotate the body-space inertia tensor
@@ -32,14 +32,14 @@ namespace drb {
 		// See Ericson 8.3.4 (Sutherland-Hodgman clipping with fat planes)
 		// TODO : verify that this maintains ordering of original poly (i.e. counterclockwise)
 		void SplitPolygon(Polygon const& poly, Plane const& plane, Polygon& front, Polygon& back)
-		{			
+		{
 			if (poly.verts.empty()) { return; }
 
 			// Test all edges (a, b) starting with edge from last to first vertex
 			auto const numVerts = poly.verts.size();
 
 			Vec3 a = poly.verts.back();
-		    auto aSide = ClassifyPointToPlane(a, plane);
+			auto aSide = ClassifyPointToPlane(a, plane);
 
 			// Loop over all edges given by vertex pair (n-1, n)
 			for (auto n = 0ull; n < numVerts; n++)
@@ -106,57 +106,82 @@ namespace drb {
 		}
 
 
-		Convex2::Header* Convex2::AllocateData(SizeT numVerts, SizeT numEdges, SizeT numFaces)
+		void Convex2::AllocateData(VertID numVerts, EdgeID numEdges, FaceID numFaces)
 		{
-			ASSERT(0 < numVerts && numVerts <= MAX_INDEX, "Number of verts out of range");
-			ASSERT(0 < numEdges && numEdges <= MAX_INDEX, "Number of edges out of range");
-			ASSERT(0 < numFaces && numFaces <= MAX_INDEX, "Number of faces out of range");
-			ASSERT(numVerts + numFaces == 2ull + numEdges, "Invalid Euler characteristic");
+			ASSERT(0 < numVerts, "Number of verts invalid");
+			ASSERT(0 < numEdges, "Number of edges invalid");
+			ASSERT(0 < numFaces, "Number of faces invalid");
+			ASSERT(numVerts + numFaces == 2ull + numEdges / 2, "Invalid Euler characteristic");
 
-			auto constexpr hSize = sizeof(Header);
-			auto const     vSize = numVerts * sizeof(Vec3);
-			auto const     vaSize = numVerts * sizeof(EdgeID);
-			auto const     eSize = numEdges * sizeof(HalfEdge);
-			auto const     fSize = numFaces * sizeof(Face);
-			auto const     cap = hSize + vSize + vaSize + eSize + fSize;
-			auto const     pad = alignof(Vec3) + alignof(EdgeID) + alignof(HalfEdge) + alignof(Face);
+			// Maximum padding that might be required for alignement within block storage
+			static auto constexpr pad = alignof(Vec3) + alignof(EdgeID) + alignof(HalfEdge) + alignof(Face);
 
-			void* memory = std::malloc(cap + pad);
-			if (not memory)
+			// Raw sizes of each type going into the arrays
+			static auto constexpr hSize = sizeof(Header);
+			auto const vSize = numVerts * sizeof(Vec3);
+			auto const vaSize = numVerts * sizeof(EdgeID);
+			auto const eSize = numEdges * sizeof(HalfEdge);
+			auto const fSize = numFaces * sizeof(Face);
+
+			// Total capacity required (without accounding for alignment)
+			auto const cap = hSize + vSize + vaSize + eSize + fSize;
+
+			// Allocate a block for storage. Let it be owned by
+			// a StackAllocator for now.
+			StackAllocator a{ std::malloc(cap + pad), cap + pad };
+
+			// Linearly allocate from our block storage for each array
+			Header* h          = a.Construct<Header>();
+			std::byte* verts   = static_cast<std::byte*>(a.Alloc(vSize, alignof(Vec3)));
+			std::byte* vertAdj = static_cast<std::byte*>(a.Alloc(vaSize, alignof(EdgeID)));
+			std::byte* edges   = static_cast<std::byte*>(a.Alloc(eSize, alignof(HalfEdge)));
+			std::byte* faces   = static_cast<std::byte*>(a.Alloc(fSize, alignof(Face)));
+
+			// Make sure we were successful with ALL allocations
+			if (not (h && verts && vertAdj && edges && faces))
 			{
-				return nullptr;
-			}
-			std::memset(memory, 0, cap);
-
-			StackAllocator a{ memory, cap };
-
-			Header* h = (Header*)a.Alloc(hSize, alignof(Header));
-			h->verts = std::span{ (Vec3*)a.Alloc(vSize, alignof(Vec3)),         numVerts };
-			h->vertAdj = std::span{ (EdgeID*)a.Alloc(vaSize, alignof(EdgeID)),  numVerts };
-			h->edges = std::span{ (HalfEdge*)a.Alloc(eSize, alignof(HalfEdge)), numEdges };
-			h->faces = std::span{ (Face*)a.Alloc(fSize, alignof(Face)),         numFaces };
-			h->memUsed = a.Release().size;
-
-			if (not h || 
-				h->verts.empty() ||
-				h->vertAdj.empty() ||
-				h->edges.empty() ||
-				h->faces.empty())
-			{
-				std::free(memory);
-				return nullptr;
+				// Memory freed by ~StackAllocator()
+				return;
 			}
 
-			return h;
+			// At this point we can transfer ownership of the block from 
+			// the StackAllocator to this object. We keep the Arena (simple
+			// POD with a pointer, size, and capacity) around for the next
+			// computations.
+			data = h;
+			Arena arena = a.Release();
+
+			// Set up offsets into block storage
+			data->vertsOffset = static_cast<Int16>(verts - arena.mem);
+			data->vertAdjOffset = static_cast<Int16>(vertAdj - arena.mem);
+			data->numVerts = numVerts;
+			data->edgesOffset = static_cast<Int16>(edges - arena.mem);
+			data->numEdges = numEdges;
+			data->facesOffset = static_cast<Int16>(faces - arena.mem);
+			data->numFaces = numFaces;
+			
+			// Record how much memory we actually needed from the block storage
+			// (this allows copies of this object to allocate only what they
+			// need, and it's nice to have, and it makes sizeof(Header) == 16).
+			data->memUsed = static_cast<Int16>( arena.size );
 		}
 
-		Convex2::Convex2(SizeT numVerts, SizeT numEdges, SizeT numFaces)
-			: data{ AllocateData(numVerts, numEdges, numFaces) }, 
-			centroid{}, 
-			orientation{}, 
-			bounds {}
+		Convex2::Convex2(Vec3 const* verts, EdgeID const* vertAdj, VertID numVerts, 
+						 HalfEdge const* edges,                    EdgeID numHalfEdges, 
+						 Face const* faces,                        FaceID numFaces)
+			
+			: data{ nullptr },
+			centroid{},
+			orientation{},
+			bounds{}
 		{
+			AllocateData(numVerts, numHalfEdges, numFaces);
 			if (not data) { throw std::bad_alloc{}; }
+
+			std::memcpy(GetRawVerts(),    verts,      numVerts * sizeof(Vec3));
+			std::memcpy(GetRawVertAdjs(), vertAdj,    numVerts * sizeof(EdgeID));
+			std::memcpy(GetRawEdges(),    edges,      numHalfEdges * sizeof(HalfEdge));
+			std::memcpy(GetRawFaces(),    faces,      numFaces * sizeof(Face));
 		}
 
 		Convex2::~Convex2() noexcept
@@ -172,14 +197,11 @@ namespace drb {
 		{
 			if (src.data)
 			{
-				data = AllocateData(src.NumVerts(), src.NumEdges(), src.NumFaces());
-				if (not data) { throw std::bad_alloc{}; }
+				void* memory = (Header*)std::malloc(src.data->memUsed);
+				if (not memory) { throw std::bad_alloc{}; }
 
-				std::copy(src.data->verts.begin(),   src.data->verts.end(),   data->verts.begin());
-				std::copy(src.data->vertAdj.begin(), src.data->vertAdj.end(), data->vertAdj.begin());
-				std::copy(src.data->edges.begin(),   src.data->edges.end(),   data->edges.begin());
-				std::copy(src.data->faces.begin(),   src.data->faces.end(),   data->faces.begin());
-				data->memUsed = src.data->memUsed;
+				std::memcpy(memory, src.data, src.data->memUsed);
+				data = (Header*)memory;
 			}
 		}
 
@@ -199,14 +221,15 @@ namespace drb {
 			std::free(data);
 			if (other.data)
 			{
-				data = AllocateData(other.NumVerts(), other.NumEdges(), other.NumFaces());
-				if (not data) { throw std::bad_alloc{}; }
+				Header* newData = static_cast<Header*>( std::malloc(other.data->memUsed) );
+				if (not newData) { throw std::bad_alloc{}; }
 
-				std::copy(other.data->verts.begin(),   other.data->verts.end(), data->verts.begin());
-				std::copy(other.data->vertAdj.begin(), other.data->vertAdj.end(), data->vertAdj.begin());
-				std::copy(other.data->edges.begin(),   other.data->edges.end(), data->edges.begin());
-				std::copy(other.data->faces.begin(),   other.data->faces.end(), data->faces.begin());
-				data->memUsed = other.data->memUsed;
+				std::memcpy(newData, other.data, other.data->memUsed);
+				data = newData;
+			}
+			else
+			{
+				data = nullptr;
 			}
 
 			centroid = other.centroid;
@@ -230,6 +253,129 @@ namespace drb {
 			return *this;
 		}
 
+		Convex2  Convex2::MakeBox(Vec3 const& halfwidths)
+		{
+			Vec3 const verts[] = {
+						Vec3{ -halfwidths.x, -halfwidths.y,  halfwidths.z }, // 0
+						Vec3{  halfwidths.x, -halfwidths.y,  halfwidths.z }, // 1
+						Vec3{  halfwidths.x,  halfwidths.y,  halfwidths.z }, // 2
+						Vec3{ -halfwidths.x,  halfwidths.y,  halfwidths.z }, // 3
+						Vec3{ -halfwidths.x, -halfwidths.y, -halfwidths.z }, // 4
+						Vec3{  halfwidths.x, -halfwidths.y, -halfwidths.z }, // 5
+						Vec3{  halfwidths.x,  halfwidths.y, -halfwidths.z }, // 6
+						Vec3{ -halfwidths.x,  halfwidths.y, -halfwidths.z }  // 7
+			};
+			
+			static constexpr EdgeID vertAdj[] = { 0, 1,	3, 5, 9, 11, 20, 15	};
+
+			static constexpr HalfEdge halfEdges[] = { 
+						{.next = 2, .twin = 1, .origin = 0, .face = 0}, //  0
+						{.next = 8, .twin = 0, .origin = 1, .face = 1}, //  1
+
+						{.next = 4, .twin = 3, .origin = 1, .face = 0}, //  2
+						{.next = 13, .twin = 2, .origin = 2, .face = 2}, //  3
+
+						{.next = 6, .twin = 5, .origin = 2, .face = 0}, //  4
+						{.next = 21, .twin = 4, .origin = 3, .face = 3}, //  5
+
+						{.next = 0, .twin = 7, .origin = 3, .face = 0}, //  6
+						{.next = 14, .twin = 6, .origin = 0, .face = 4}, //  7
+
+						{.next = 10, .twin = 9, .origin = 0, .face = 1},  //  8
+						{.next = 7, .twin = 8, .origin = 4, .face = 4},  //  9
+
+						{.next = 12, .twin = 11, .origin = 4, .face = 1},  // 10
+						{.next = 17, .twin = 10, .origin = 5, .face = 5},  // 11
+
+						{.next = 1, .twin = 13, .origin = 5, .face = 1},  // 12
+						{.next = 18, .twin = 12, .origin = 1, .face = 2},  // 13
+
+						{.next = 16, .twin = 15, .origin = 3, .face = 4},  // 14
+						{.next = 5, .twin = 14, .origin = 7, .face = 3},  // 15
+
+						{.next = 9, .twin = 17, .origin = 7, .face = 4},  // 16
+						{.next = 23, .twin = 16, .origin = 4, .face = 5},  // 17
+
+						{.next = 20, .twin = 19, .origin = 5, .face = 2},  // 18
+						{.next = 11, .twin = 18, .origin = 6, .face = 5},  // 19
+
+						{.next = 3, .twin = 21, .origin = 6, .face = 2},  // 20
+						{.next = 22, .twin = 20, .origin = 2, .face = 3},  // 21
+
+						{.next = 15, .twin = 23, .origin = 6, .face = 3},  // 22
+						{.next = 19, .twin = 22, .origin = 7, .face = 5}   // 23   
+			};
+
+			Face const faces[] = {
+					{.edge = 0,  .plane = {.n = Vec3(0,  0,  1), .d = halfwidths.z }},  // Front 0
+					{.edge = 1,  .plane = {.n = Vec3(0, -1, 0),  .d = halfwidths.y }},  // Bottom 
+					{.edge = 3,  .plane = {.n = Vec3(1,  0,  0), .d = halfwidths.x }},  // Right 2
+					{.edge = 5,  .plane = {.n = Vec3(0,  1,  0), .d = halfwidths.y }},  // Top 3
+					{.edge = 7,  .plane = {.n = Vec3(-1, 0,  0), .d = halfwidths.x }},  // Left 4
+					{.edge = 11, .plane = {.n = Vec3(0,  0, -1), .d = halfwidths.z }},  // Back 5
+			};
+
+			Convex2 box{ verts, vertAdj, 8, halfEdges, 24, faces, 6 };
+			box.bounds = { .max = halfwidths, .min = -halfwidths };
+
+			return box;
+		}
+
+		Convex2  Convex2::MakeTetrahedron(Vec3 const& p0_, Vec3 const& p1_, Vec3 const& p2_, Vec3 const& p3_)
+		{
+			// Centroid
+			Vec3 const c = 0.25f * (p0_ + p1_ + p2_ + p3_);
+
+			// Check if we need to swap the vertex order in order for
+			// triangle p1, p2, p3 to be in counterclockwise order
+			Vec3 const a = p2_ - p1_, b = p3_ - p1_;
+			Bool const swap = glm::dot(glm::cross(a, b), p0_) < 0.0f;
+
+			// Shift all points s.t. centroid is at origin, swapping order if needed
+			Vec3 const p0 = p0_ - c;
+			Vec3 const p1 = p1_ - c;
+			Vec3 const p2 = (swap ? p3_ : p2_) - c;
+			Vec3 const p3 = (swap ? p2_ : p3_) - c;
+
+			Vec3 const verts[] = { p0, p1, p2, p3 };
+
+			static constexpr EdgeID vertAdj[] = { 0, 1, 3, 4 };
+
+			static constexpr HalfEdge halfEdges[] = {
+				{.next = 2, .twin = 1, .origin = 0, .face = 0}, //  0
+				{.next = 9, .twin = 0, .origin = 1, .face = 2}, //  1
+
+				{.next = 4, .twin = 3, .origin = 1, .face = 0}, //  2
+				{.next = 11, .twin = 2, .origin = 2, .face = 3}, //  3
+
+				{.next = 0, .twin = 5, .origin = 2, .face = 0}, //  4
+				{.next = 6, .twin = 4, .origin = 0, .face = 1}, //  5
+
+				{.next = 8, .twin = 7, .origin = 2, .face = 1}, //  6
+				{.next = 3, .twin = 6, .origin = 3, .face = 3}, //  7
+
+				{.next = 5, .twin = 9, .origin = 3, .face = 1}, //  8
+				{.next = 10, .twin = 8, .origin = 0, .face = 2}, //  9
+
+				{.next = 1, .twin = 11, .origin = 3, .face = 2}, //  10
+				{.next = 7, .twin = 10, .origin = 1, .face = 3} //  11
+			};
+
+			Face const faces[] = {
+					{.edge = 0, .plane = MakePlane(p0, p1, p2) },
+					{.edge = 5, .plane = MakePlane(p0, p2, p3) },
+					{.edge = 9, .plane = MakePlane(p0, p3, p1) },
+					{.edge = 3, .plane = MakePlane(p3, p2, p1) } 
+			};
+
+			Convex2 tet{ verts, vertAdj, 4, halfEdges, 12, faces, 4 };
+			tet.bounds = {
+					.max = glm::max(p0, glm::max(p1, glm::max(p2, p3))),
+					.min = glm::min(p0, glm::min(p1, glm::min(p2, p3)))
+			};
+
+			return tet;
+		}
 		
 
 		AABB MakeAABB(Mesh const& sph, Mat4 const& tr)

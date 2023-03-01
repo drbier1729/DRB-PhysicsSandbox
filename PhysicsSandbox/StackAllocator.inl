@@ -3,7 +3,7 @@ namespace drb {
 	template<class T, class ... Args>
 	T* StackAllocator::Construct(Args &&... args)
 	{
-		T* loc = (T*)Alloc(sizeof(T), alignof(T));
+		T* loc = static_cast<T*>( Alloc(sizeof(T), alignof(T)) );
 		if (loc) 
 		{
 			return std::construct_at(loc, std::forward<Args>(args)...);

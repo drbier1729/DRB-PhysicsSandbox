@@ -12,6 +12,7 @@ namespace drb {
 	using Uint32 = std::uint32_t;
 	using Uint64 = std::uint64_t;
 	using SizeT = std::size_t;
+	using Byte = std::byte;
 
 	using Bool = bool;
 

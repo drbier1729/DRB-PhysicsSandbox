@@ -5,7 +5,7 @@ namespace drb {
 
 	struct Arena
 	{
-		void* mem      = nullptr;
+		Byte* mem      = nullptr;
 		SizeT size     = 0;
 		SizeT capacity = 0;
 	};

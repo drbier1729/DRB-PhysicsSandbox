@@ -435,86 +435,134 @@ namespace drb {
 		}
 
 
-		inline Vec3& Convex2::GetVert(VertID index)
-		{
-			ASSERT(data, "No data allocated");
-			ASSERT(0 <= index && index < data->verts.size(), "Index out of range");
-			return data->verts[index];
-		}
 		inline Vec3 const& Convex2::GetVert(VertID index) const
 		{
 			ASSERT(data, "No data allocated");
-			ASSERT(0 <= index && index < data->verts.size(), "Index out of range");
-			return data->verts[index];
+			ASSERT(0 <= index && index < data->numVerts, "Index out of range");
+			Vec3 const* verts = GetRawVerts();
+			return *(verts + index);
 		}
 
 		inline Convex2::EdgeID Convex2::GetOneEdgeFrom(VertID index) const
 		{
 			ASSERT(data, "No data allocated");
-			ASSERT(0 <= index && index < data->verts.size(), "Index out of range");
-			return data->vertAdj[index];
-		}
-		inline SizeT       Convex2::NumVerts() const
-		{
-			ASSERT(data, "No data allocated");
-			return data->verts.size();
+			ASSERT(0 <= index && index < data->numVerts, "Index out of range");
+			EdgeID const* vertAdj = GetRawVertAdjs();
+			return *(vertAdj + index);
 		}
 
-		inline Convex2::HalfEdge& Convex2::GetEdge(EdgeID index)
+		inline Convex2::VertID Convex2::NumVerts() const
 		{
 			ASSERT(data, "No data allocated");
-			ASSERT(0 <= index && index < data->edges.size(), "Index out of range");
-			return data->edges[index];
+			return static_cast<VertID>(data->numVerts);
 		}
 
 		inline Convex2::HalfEdge const& Convex2::GetEdge(EdgeID index) const
 		{
 			ASSERT(data, "No data allocated");
-			ASSERT(0 <= index && index < data->edges.size(), "Index out of range");
-			return data->edges[index];
-		}
-		inline SizeT Convex2::NumEdges() const
-		{
-			ASSERT(data, "No data allocated");
-			return data->edges.size();
+			ASSERT(0 <= index && index < data->numEdges, "Index out of range");
+			HalfEdge const* edges = GetRawEdges();
+			return *(edges + index);
 		}
 
-		inline Convex2::Face& Convex2::GetFace(FaceID index)
+		inline Convex2::EdgeID Convex2::NumHalfEdges() const
 		{
 			ASSERT(data, "No data allocated");
-			ASSERT(0 <= index && index < data->faces.size(), "Index out of range");
-			return data->faces[index];
+			return static_cast<EdgeID>(data->numEdges);
 		}
+
 		inline Convex2::Face const& Convex2::GetFace(FaceID index) const
 		{
 			ASSERT(data, "No data allocated");
-			ASSERT(0 <= index && index < data->faces.size(), "Index out of range");
-			return data->faces[index];
+			ASSERT(0 <= index && index < data->numFaces, "Index out of range");
+			Face const* faces = GetRawFaces();
+			return *(faces + index);
 		}
-		inline SizeT Convex2::NumFaces() const
+
+		inline Convex2::FaceID Convex2::NumFaces() const
 		{
 			ASSERT(data, "No data allocated");
-			return data->faces.size();
+			return static_cast<FaceID>(data->numFaces);
 		}
-		inline std::span<Vec3 const> Convex2::GetVerts()
+
+		inline std::span<Vec3 const> Convex2::GetVerts() const
 		{
 			ASSERT(data, "No data allocated");
-			return data->verts;
+			return std::span{ GetRawVerts(), static_cast<SizeT>(data->numVerts)};
 		}
-		inline std::span<Convex2::EdgeID const> Convex2::GetVertAdjs()
+
+		inline std::span<Convex2::EdgeID const> Convex2::GetVertAdjs() const
 		{
 			ASSERT(data, "No data allocated");
-			return data->vertAdj;
+			return std::span{ GetRawVertAdjs(), static_cast<SizeT>(data->numVerts)};
 		}
-		inline std::span<Convex2::HalfEdge const> Convex2::GetEdges()
+
+		inline std::span<Convex2::HalfEdge const> Convex2::GetEdges() const
 		{
 			ASSERT(data, "No data allocated");
-			return data->edges;
+			return std::span{ GetRawEdges(), static_cast<SizeT>(data->numEdges)};
 		}
-		inline std::span<Convex2::Face const> Convex2::GetFaces()
+
+		inline std::span<Convex2::Face const> Convex2::GetFaces() const
 		{
 			ASSERT(data, "No data allocated");
-			return data->faces;
+			return std::span{ GetRawFaces(), static_cast<SizeT>(data->numFaces)};
+		}
+
+		inline Vec3* Convex2::GetRawVerts()
+		{
+			ASSERT(data, "No data allocated");
+			Vec3* verts = reinterpret_cast<Vec3 *>(reinterpret_cast<std::byte*>(data) + data->vertsOffset);
+			return std::launder(verts);
+		}
+
+		inline Convex2::EdgeID* Convex2::GetRawVertAdjs()
+		{
+			ASSERT(data, "No data allocated");
+			EdgeID* vertAdj = reinterpret_cast<EdgeID*>(reinterpret_cast<std::byte*>(data) + data->vertAdjOffset);
+			return std::launder(vertAdj);
+		}
+
+		inline Convex2::HalfEdge* Convex2::GetRawEdges()
+		{
+			ASSERT(data, "No data allocated");
+			HalfEdge* edges = reinterpret_cast<HalfEdge*>(reinterpret_cast<std::byte*>(data) + data->edgesOffset);
+			return std::launder(edges);
+		}
+
+		inline Convex2::Face* Convex2::GetRawFaces()
+		{
+			ASSERT(data, "No data allocated");
+			Face* faces = reinterpret_cast<Face *>(reinterpret_cast<std::byte*>(data) + data->facesOffset);
+			return std::launder(faces);
+		}
+		
+		inline Vec3 const* Convex2::GetRawVerts() const
+		{
+			ASSERT(data, "No data allocated");
+			Vec3 const* verts = reinterpret_cast<Vec3 const*>(reinterpret_cast<std::byte*>(data) + data->vertsOffset);
+			return std::launder(verts);
+		}
+
+		inline Convex2::EdgeID const* Convex2::GetRawVertAdjs() const
+		{
+			ASSERT(data, "No data allocated");
+			EdgeID const* vertAdj = reinterpret_cast<EdgeID const*>(reinterpret_cast<std::byte*>(data) + data->vertAdjOffset);
+			return std::launder(vertAdj);
+		}
+
+		inline Convex2::HalfEdge const* Convex2::GetRawEdges() const
+		{
+			ASSERT(data, "No data allocated");
+			HalfEdge const* edges = reinterpret_cast<HalfEdge const*>(reinterpret_cast<std::byte*>(data) + data->edgesOffset);
+			return std::launder(edges);
+		}
+
+		inline Convex2::Face const* Convex2::GetRawFaces() const
+		{
+			ASSERT(data, "No data allocated");
+			Face const* faces = reinterpret_cast<Face const*>(reinterpret_cast<std::byte*>(data) + data->facesOffset);
+			return std::launder(faces);
 		}
 	}
 }

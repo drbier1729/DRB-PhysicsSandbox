@@ -231,9 +231,10 @@ namespace drb::physics {
 
 	struct Convex2
 	{
-		using EdgeID = Uint8;
-		using FaceID = Uint8;
-		using VertID = Uint8;
+		using IndexT = Uint8;
+		using EdgeID = IndexT;
+		using FaceID = IndexT;
+		using VertID = IndexT;
 
 		struct HalfEdge {
 			EdgeID next = INVALID_INDEX;
@@ -253,20 +254,36 @@ namespace drb::physics {
 
 		struct Header
 		{
-			std::span<Vec3>     verts{};
-			std::span<EdgeID>   vertAdj{};
-			std::span<HalfEdge> edges{};
-			std::span<Face>     faces{};
-			SizeT				memUsed = 0;
+			Int16 vertsOffset;
+			Int16 vertAdjOffset;
+			Int16 numVerts;
+
+			Int16 edgesOffset;
+			Int16 numEdges;
+
+			Int16 facesOffset;
+			Int16 numFaces;
+
+			Int16 memUsed;
 		};
+
 
 		Header*  data = nullptr;
 		Vec3     centroid{};    // world space
 		Quat     orientation{}; // world space
 		AABB	 bounds{};      // AABB in local space -- used to quickly recompute AABB/OBB in world space
 
+		static constexpr auto type = ColliderType::Convex;
+
+		static constexpr IndexT MAX_INDEX = std::numeric_limits<IndexT>::max() - 1;
+		static constexpr IndexT MAX_SIZE = std::numeric_limits<IndexT>::max();
+		static constexpr IndexT INVALID_INDEX = MAX_SIZE;
+
+
 		Convex2() = default;
-		Convex2(SizeT numVerts, SizeT numEdges, SizeT numFaces);
+		Convex2(Vec3 const* verts, EdgeID const* vertAdj, VertID numVerts, 
+			HalfEdge const* edges, EdgeID numHalfEdges, 
+			Face const* faces, FaceID numFaces);
 		
 		Convex2(Convex2 const& src);
 		Convex2& operator=(Convex2 const& other);
@@ -276,31 +293,43 @@ namespace drb::physics {
 		
 		~Convex2() noexcept;
 
-		inline Vec3&           GetVert(VertID index);
-		inline Vec3 const&     GetVert(VertID index) const;
-		inline EdgeID          GetOneEdgeFrom(VertID index) const;
-		inline SizeT           NumVerts() const;
+		// Indexed access to individual data elements
+		inline Vec3 const&               GetVert(VertID index) const;
+		inline EdgeID                    GetOneEdgeFrom(VertID index) const;
+		inline VertID                    NumVerts() const;
+							             
+		inline HalfEdge const&           GetEdge(EdgeID index) const;
+		inline EdgeID                    NumHalfEdges() const;
+							             
+		inline Face const&               GetFace(FaceID index) const;
+		inline FaceID                    NumFaces() const;
 
-		inline HalfEdge&       GetEdge(EdgeID index);
-		inline HalfEdge const& GetEdge(EdgeID index) const;
-		inline SizeT           NumEdges() const;
+		// Access to underlying arrays
+		inline std::span<Vec3 const>     GetVerts() const;
+		inline std::span<EdgeID const>   GetVertAdjs() const;
+		inline std::span<HalfEdge const> GetEdges() const;
+		inline std::span<Face const>     GetFaces() const;
 
-		inline Face&           GetFace(FaceID index);
-		inline Face const&     GetFace(FaceID index) const;
-		inline SizeT           NumFaces() const;
 
-		inline std::span<Vec3 const>     GetVerts();
-		inline std::span<EdgeID const>   GetVertAdjs();
-		inline std::span<HalfEdge const> GetEdges();
-		inline std::span<Face const>     GetFaces();
-
-		static constexpr SizeT MAX_INDEX = std::numeric_limits<Uint8>::max() - 1;
-		static constexpr SizeT INVALID_INDEX = std::numeric_limits<Uint8>::max();
-		static constexpr auto  type = ColliderType::Convex;
+		static Convex2                   MakeBox(Vec3 const& halfwidths);
+		static Convex2                   MakeTetrahedron(Vec3 const& p0, Vec3 const& p1, Vec3 const& p2, Vec3 const& p3); // note that this will shift the points s.t. the centroid is at (0,0,0)
 
 	private:
 		// Helpers
-		Header* AllocateData(SizeT numV, SizeT numE, SizeT numF);
+		void AllocateData(VertID numV, EdgeID numE, FaceID numF);
+
+		inline Vec3*           GetRawVerts();
+		inline EdgeID*         GetRawVertAdjs();
+		inline HalfEdge*       GetRawEdges();
+		inline Face*           GetRawFaces();
+		inline Vec3 const*     GetRawVerts() const;
+		inline EdgeID const*   GetRawVertAdjs() const;
+		inline HalfEdge const* GetRawEdges() const;
+		inline Face const*     GetRawFaces() const;
+
+		// Make sure that the offset type (Int16) is large enough for our maximum data
+		static constexpr SizeT  MAX_DATA_BYTES = Convex2::MAX_SIZE * (sizeof(Vec3) + sizeof(Convex2::EdgeID) + sizeof(Convex2::HalfEdge) + sizeof(Convex2::Face)) + sizeof(Convex2::Header) + alignof(Vec3) + alignof(Convex2::EdgeID) + alignof(Convex2::HalfEdge) + alignof(Convex2::Face) + alignof(Convex2::Header);
+		static_assert(Convex2::MAX_DATA_BYTES < std::numeric_limits<Int16>::max());
 	};
 	static_assert(sizeof(Convex2) == 64);
 }

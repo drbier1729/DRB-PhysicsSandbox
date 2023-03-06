@@ -1,7 +1,7 @@
 #ifndef DRB_PHYSICSWORLD_H
 #define DRB_PHYSICSWORLD_H
 
-#include "PhysicsGeometry.h"
+#include "CollisionGeometry.h"
 #include "GeometryQueryDataStructures.h"
 #include "RigidBody.h"
 #include "DynamicBVH.h"
@@ -73,8 +73,8 @@ namespace drb::physics {
 		inline RigidBody& CreateRigidBody(RigidBody const& source);
 		inline RigidBody& CreateRigidBody(RigidBody&& source = {});
 
-		World& AddStaticCollider(Shape auto&& shape, CollisionShapeBase&& options = {});
-		World& AddStaticCollider(Shape auto const& shape, CollisionShapeBase const& options = {});
+		inline World& AddStaticCollider(Shape auto&& shape);
+		inline World& AddStaticCollider(Shape auto const& shape);
 
 		inline void Clear();
 			

@@ -29,6 +29,8 @@ namespace drb {
 
 		inline Float64 DeltaTime() const;
 		inline Duration LastFrameTime() const;
+
+		static inline TimePoint Now();
 	};
 }
 

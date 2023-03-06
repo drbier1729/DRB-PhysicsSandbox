@@ -50,8 +50,8 @@ namespace drb {
 
 			if (glm::any(glm::isnan(normalized)))
 			{
-				ASSERT(false, "Tried to normalize a zero vector");
-				return Vec4(0);
+				ASSERT(false, "Tried to normalize an invalid vector");
+				return Vec3(0);
 			}
 			return normalized;
 		}
@@ -61,7 +61,7 @@ namespace drb {
 
 			if (glm::any(glm::isnan(normalized)))
 			{
-				ASSERT(false, "Tried to normalize a zero vector");
+				ASSERT(false, "Tried to normalize an invalid vector");
 				return Vec4(0);
 			}
 			return normalized;

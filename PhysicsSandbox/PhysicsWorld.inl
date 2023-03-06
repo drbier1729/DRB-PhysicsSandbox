@@ -14,20 +14,19 @@ namespace drb {
 			return bodies.emplace_back(source);
 		}
 
-		World& World::AddStaticCollider(Shape auto&& shape, CollisionShapeBase&& options)
+		inline World& World::AddStaticCollider(Shape auto&& shape)
 		{
 			ASSERT(not locked, "Cannot add static colliders when world is locked");
 
-			colliders.AddCollider(std::forward<decltype(shape)>(shape), 
-								  std::forward<CollisionShapeBase>(options));
+			colliders.AddCollider(std::forward<decltype(shape)>(shape), 0.0f);
 			return *this;
 		}
 
-		World& World::AddStaticCollider(Shape auto const& shape, CollisionShapeBase const& options)
+		inline World& World::AddStaticCollider(Shape auto const& shape)
 		{
 			ASSERT(not locked, "Cannot add static colliders when world is locked");
 		
-			colliders.AddCollider(shape, options);
+			colliders.AddCollider(shape, 0.0f);
 			return *this;
 		}
 

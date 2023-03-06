@@ -2,7 +2,7 @@
 #define DRB_RIGIDBODY_H
 
 #include "AABB.h"
-#include "PhysicsGeometry.h"
+#include "CollisionGeometry.h"
 #include "Math.h"
 
 namespace drb {

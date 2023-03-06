@@ -7,10 +7,6 @@
 
 namespace drb::physics {
 	
-	// Fwd decl
-	struct Sphere;
-	
-
 	// Bounding volume
 	struct BV
 	{
@@ -86,11 +82,11 @@ namespace drb::physics {
 
 
 	// Callback signature for querying the BVHierarchy
-	template<class UnaryFunc>
-	concept BVHIntersectionQuery = std::predicate<UnaryFunc, BVHNode const&>;
+	template<class Func>
+	concept BVHIntersectionQuery = std::predicate<Func, BVHNode const&>;
 	
-	template<class UnaryFunc>
-	concept BVHRayCastQuery = std::predicate<UnaryFunc, BVHNode const&, CastResult const&>;
+	template<class Func>
+	concept BVHRayCastQuery = std::predicate<Func, BVHNode const&, CastResult const&>;
 
 
 
@@ -129,7 +125,7 @@ namespace drb::physics {
 
 			BVHNode&       operator[](Int32 index);
 			BVHNode const& operator[](Int32 index) const;
-			BVHNode*       Create(AABB const& aabb, void* userData = nullptr);
+			Int32          Create(AABB const& aabb, void* userData = nullptr);
 			void           Free(Int32 nodeIndex);
 			Int32		   Size() const;
 			Int32		   Capacity() const;
@@ -161,9 +157,9 @@ namespace drb::physics {
 	private:
 		// Helpers
 		Int32	    Balance(Int32 index);
-		BVHNode*    FindBestSiblingFor(BVHNode const* n);
+		Int32       FindBestSiblingFor(Int32 index);
 		void		RefitBVsFrom(Int32 index);
-		Bool        InsertLeaf(BVHNode* n);
+		Bool        InsertLeaf(Int32 index);
 		void        RemoveLeaf(Int32 index);
 		Bool	    ValidHandle(BVHandle bvHandle, Int32& indexOut) const;
 	};

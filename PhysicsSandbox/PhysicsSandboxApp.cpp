@@ -10,7 +10,7 @@ namespace drb {
 	// Helper Forward Decls
 	namespace inspector {
 		void DisplayRigidBodyInfo(physics::RigidBody const& rb);
-		void DisplayFrameInfo(Float32 fps, Int64 frameCount);
+		void DisplayFrameInfo(Float32 renderFPS, Int64 simTimeMicroSecs, Int64 frameCount);
 	}
 
 
@@ -28,6 +28,10 @@ namespace drb {
 		bool result = Application::Init(argc, argv);
 		if (not result) { return false; }
 
+		// Disable V-Sync to test frame rates
+		glfwSwapInterval(0);
+
+		// Customize drawing mode and clear color
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 
@@ -37,30 +41,23 @@ namespace drb {
 		auto geomA = std::make_shared<physics::CollisionGeometry>();
 		geomA->AddCollider(
 				Sphere{ .r = 2.0f },
-				{
-						.mass = 10.0f
-				})
+				10.0f)
 			.Bake();
 		
 		auto geomB = std::make_shared<physics::CollisionGeometry>();
 		geomB->AddCollider(
-				Capsule{ .r = 0.5f, .h = 2.0f },
-				{
-					.mass = 20.0f
-				})
+			    Capsule{ 
+					Segment{ .b = Vec3(0), .e = Vec3(0,2,0) }, 
+					0.5f // radius
+				},
+				20.0f)
 			.Bake();
 
 		auto geomC = std::make_shared<physics::CollisionGeometry>();
 		geomC->AddCollider(
-				MakeTetrahedron(Vec3(0, 2, 0), Vec3(1, 0, 0), Vec3(0, 0, 1), Vec3(-1, 0, 0)),
-				{
-					.transform = glm::translate(Mat4(1), Vec3(0.0f, -2.0f, 0.0f)),
-					.mass = 20.0f
-				})
-				/*MakeBox(Vec3(1.0f, 2.0f, 3.0f)),
-				{
-					.transform = glm::translate(Mat4(1), Vec3(0,0,2))
-				})*/
+				Convex::MakeTetrahedron(Vec3(0, 2, 0), Vec3(1, 0, 0), Vec3(0, 0, 1), Vec3(-1, 0, 0)),
+				20.0f)
+			 .AddCollider(Convex::MakeBox(Vec3(1.0f, 1.0f, 1.0f)))
 			.Bake();
 
 
@@ -87,11 +84,7 @@ namespace drb {
 			.SetCollisionGeometry(geomB);
 			
 
-		mWorld.AddStaticCollider(
-			MakeBox(Vec3(1.0f, 2.0f, 3.0f)),
-			{
-				.transform = glm::translate(Mat4(1), Vec3(0,0,2))
-			});
+		mWorld.AddStaticCollider(Convex::MakeBox(Vec3(1.0f, 2.0f, 3.0f)));
 
 		// Build BVH
 		mWorld.Init();
@@ -109,8 +102,8 @@ namespace drb {
 			.LookAt(Vec3(0));
 
 		// Set Timer values
-		mTimer.SetDeltaTimeSmoothing(0.7)
-			.SetFrameTimeCap(8333333ns); // cap at 120fps
+		mTimer.SetDeltaTimeSmoothing(0.7);
+			//.SetFrameTimeCap(8333333ns); // cap at 120fps
 
 		// Initialize Scene Inspector
 		inspector::Init(mWindow);
@@ -128,8 +121,8 @@ namespace drb {
 		int stepDirection = 0;  // +1 -> forward, -1 -> backward
 
 		// Fixed delta time for physics
-		FrameTimer::Duration const fixedDeltaTime = 16666667ns; // update physics at 60fps
-		Float32 const fixedDT = static_cast<Float32>(fixedDeltaTime.count() * FrameTimer::durationTypeRatio);
+		FrameTimer::Duration constexpr fixedDeltaTime = 16666667ns; // update physics at 60fps
+		Float32 constexpr                     fixedDT = static_cast<Float32>(fixedDeltaTime.count() * FrameTimer::durationTypeRatio);
 		FrameTimer::Duration accumulatedTime = 0ns;
 		
 		// Variable delta time for rendering
@@ -141,8 +134,7 @@ namespace drb {
 			// Frame Timing Start
 			// ------------------
 			mTimer.FrameBegin();
-
-
+			
 			// -------------------------
 			// Input & Application Logic
 			// -------------------------
@@ -163,9 +155,14 @@ namespace drb {
 			// ----------------
 			// Simulate Physics
 			// ----------------
+			FrameTimer::Duration simTime{};
 			if (not paused)
 			{
 				accumulatedTime += mTimer.LastFrameTime();
+				
+				// DEBUG BEGIN
+				auto simStartTime = FrameTimer::Now();
+				// DEBUG END
 
 				while (accumulatedTime >= fixedDeltaTime) 
 				{
@@ -180,6 +177,11 @@ namespace drb {
 					accumulatedTime -= fixedDeltaTime;
 					currentStep = ++totalSteps;
 				}
+
+				// DEBUG BEGIN
+				simTime = FrameTimer::Now() - simStartTime;
+				// DEBUG END
+
 			}
 			else // If we're paused, we can play our state forward or backward 
 			{
@@ -217,14 +219,16 @@ namespace drb {
 				.DrawBVH()
 				.EndDraw();
 			
+			
 			// Draw inspector
 			inspector::BeginDraw();
 			inspector::DisplayRigidBodyInfo(*mSelected);
-			inspector::DisplayFrameInfo(1.0f / dt, currentStep);
+			inspector::DisplayFrameInfo( 1.0f / dt, std::chrono::duration_cast<std::chrono::microseconds>(simTime).count(), currentStep);
 			inspector::FinishDraw();
 			
-			glfwSwapBuffers(mWindow.Get());
 
+			glfwSwapBuffers(mWindow.Get());
+			
 
 			// ----------------
 			// Frame Timing End
@@ -385,18 +389,27 @@ namespace drb {
 
 	namespace inspector {
 		
-		void DisplayFrameInfo(Float32 fps, Int64 frameCount)
+		void DisplayFrameInfo(Float32 renderFPS, Int64 simTime, Int64 frameCount)
 		{
 			static Uint64 counter = 0;
-			static Float32 lastFPS = 0.0f;
+			static Float32 avgFPS = 0.0f;
+			static Float32 totalFPS = 0.0f;
+			static Float32 avgSimTime = 0;
+			static Int64 totalSimTime = 0;
+
+			if (counter++ % 120 == 0) {
+				avgFPS = (1.0f / 120.0f) * totalFPS;
+				totalFPS = 0.0f;
+				avgSimTime = (1.0f / 120.0f) * totalSimTime;
+				totalSimTime = 0;
+			}
+			totalFPS += renderFPS;
+			totalSimTime += simTime;
 
 			ImGui::Begin("Simulation Info");
-			
-			if (counter++ % 120 == 0) {
-				lastFPS = fps;
-			}
-
-			ImGui::Text("FPS: %.0f", lastFPS);
+		
+			ImGui::Text("Render FPS: %.0f", avgFPS);
+			ImGui::Text("Sim Time per Frame: %.0f microseconds", avgSimTime);
 			ImGui::Text("Sim Step: %d", frameCount);
 
 			ImGui::End();

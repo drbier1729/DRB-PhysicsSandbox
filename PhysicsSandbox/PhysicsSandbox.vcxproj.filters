@@ -120,6 +120,18 @@
     <ClCompile Include="StackAllocator.cpp">
       <Filter>Source Files\Engine</Filter>
     </ClCompile>
+    <ClCompile Include="CollisionGeometry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryPrimitives.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryPrimitiveQueries.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CollisionQueries.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -200,6 +212,18 @@
     <ClInclude Include="StackAllocator.h">
       <Filter>Header Files\Engine</Filter>
     </ClInclude>
+    <ClInclude Include="CollisionGeometry.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryPrimitives.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryPrimitiveQueries.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CollisionQueries.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="RigidBody.inl">
@@ -249,6 +273,9 @@
     </None>
     <None Include="StackAllocator.inl">
       <Filter>Header Files\Engine</Filter>
+    </None>
+    <None Include="CollisionGeometry.inl">
+      <Filter>Header Files</Filter>
     </None>
   </ItemGroup>
 </Project>

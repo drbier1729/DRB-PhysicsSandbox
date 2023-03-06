@@ -167,6 +167,7 @@
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="CollisionQueries.cpp" />
     <ClCompile Include="DynamicBVH.cpp" />
     <ClCompile Include="FrameListener.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
@@ -181,6 +182,9 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">pch.h</PrecompiledHeaderFile>
     </ClCompile>
+    <ClCompile Include="CollisionGeometry.cpp" />
+    <ClCompile Include="GeometryPrimitiveQueries.cpp" />
+    <ClCompile Include="GeometryPrimitives.cpp" />
     <ClCompile Include="GeometryQueryDataStructures.cpp" />
     <ClCompile Include="Math.cpp" />
     <ClCompile Include="PhysicsDebugDrawing.cpp" />
@@ -230,10 +234,14 @@
     <ClInclude Include="Application.h" />
     <ClInclude Include="BreakableScope.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="CollisionQueries.h" />
     <ClInclude Include="DynamicBVH.h" />
     <ClInclude Include="FrameListener.h" />
     <ClInclude Include="FrameTimer.h" />
     <ClInclude Include="FunctionCaller.h" />
+    <ClInclude Include="CollisionGeometry.h" />
+    <ClInclude Include="GeometryPrimitiveQueries.h" />
+    <ClInclude Include="GeometryPrimitives.h" />
     <ClInclude Include="GeometryQueryDataStructures.h" />
     <ClInclude Include="Math.h" />
     <ClInclude Include="PhysicsDebugDrawing.h" />
@@ -256,6 +264,7 @@
   <ItemGroup>
     <None Include="AABB.inl" />
     <None Include="Camera.inl" />
+    <None Include="CollisionGeometry.inl" />
     <None Include="default.frag" />
     <None Include="default.vert" />
     <None Include="DynamicBVH.inl" />

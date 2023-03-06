@@ -21,12 +21,11 @@ namespace drb {
 	{
 		frameElapsed = Clock::now() - frameStart;
 		
-		if (frameTimeCap != Duration{ 0 }) {
-			while (frameElapsed < frameTimeCap) {
-				frameElapsed = Clock::now() - frameStart;
-			}
+		while (frameElapsed < frameTimeCap) 
+		{
+			frameElapsed = Clock::now() - frameStart;
 		}
-
+		
 		Float64 const lastFrame = frameElapsed.count() * durationTypeRatio;
 		deltaTime = dtSmoothing * lastFrame + (1.0f - dtSmoothing) * deltaTime;
 	}
@@ -39,5 +38,10 @@ namespace drb {
 	inline Float64 FrameTimer::DeltaTime() const
 	{
 		return deltaTime;
+	}
+
+	inline FrameTimer::TimePoint FrameTimer::Now()
+	{
+		return Clock::now();
 	}
 }

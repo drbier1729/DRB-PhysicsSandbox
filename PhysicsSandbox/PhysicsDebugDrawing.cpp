@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "PhysicsDebugDrawing.h"
 
-#include "PhysicsGeometry.h"
+#include "CollisionGeometry.h"
 #include "PhysicsGeometryQueries.h"
 #include "RigidBody.h"
 #include "PhysicsWorld.h"
@@ -126,35 +126,35 @@ namespace drb {
 			AABB b{};
 
 			for (auto&& s : rb.geometry->spheres) {
-				modelTr = rbTr * s.transform;
+				modelTr = rbTr * s.shape.Transform();
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
 				modelTr = SphereTransform(s.shape, modelTr);
 				DrawMesh(use.mesh, shader, modelTr, ci);
 				
 				EnableWireframeMode();
-				b = MakeAABB(s.shape, modelTr);
+				b = s.shape.Bounds().Transformed(modelTr);
 				DrawAABB(b, shader, ci);
 				EnableWireframeMode(false);
 			}
 
 			for (auto&& c : rb.geometry->capsules) {
-				modelTr = rbTr * c.transform;
+				modelTr = rbTr * c.shape.Transform();
 				DrawCapsule(c.shape, shader, modelTr, ci);
 
 				EnableWireframeMode();
-				b = MakeAABB(c.shape, modelTr);
+				b = c.shape.Bounds().Transformed(modelTr);
 				DrawAABB(b, shader, ci);
 				EnableWireframeMode(false);
 			}
 
 			for (auto&& h : rb.geometry->hulls) {
 				
-				modelTr = rbTr * h.transform;
+				modelTr = rbTr * h.shape.Transform();
 				drb::Mesh::ScopedUse use{ meshes.at(&h.shape) };
 				DrawMesh(use.mesh, shader, modelTr, ci);
 
 				EnableWireframeMode();
-				b = MakeAABB(h.shape, modelTr);
+				b = h.shape.Bounds().Transformed(modelTr);
 				DrawAABB(b, shader, ci);
 				EnableWireframeMode(false);
 			}
@@ -201,19 +201,19 @@ namespace drb {
 			Mat4 const scale = glm::scale(Mat4(1), Vec3(1.03f));
 			
 			for (auto&& s : rb.geometry->spheres) {
-				modelTr = rbTr * s.transform * scale;
+				modelTr = rbTr * s.shape.Transform() * scale;
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
 				modelTr = SphereTransform(s.shape, modelTr);
 				DrawMesh(use.mesh, shader, modelTr, ci);
 			}
 
 			for (auto&& c : rb.geometry->capsules) {
-				modelTr = rbTr * c.transform * scale;
+				modelTr = rbTr * c.shape.Transform() * scale;
 				DrawCapsule(c.shape, shader, modelTr, ci);
 			}
 
 			for (auto&& h : rb.geometry->hulls) {
-				modelTr = rbTr * h.transform * scale;
+				modelTr = rbTr * h.shape.Transform() * scale;
 				drb::Mesh::ScopedUse use{ meshes.at(&h.shape) };
 				DrawMesh(use.mesh, shader, modelTr, ci);
 			}
@@ -283,6 +283,7 @@ namespace drb {
 					.opacity = 0.3f
 			};
 
+			if (m.numContacts == 0) { return *this; }
 
 			// Draw contact points, and compute center  while we're at it
 			Vec3 manifoldCenter = Vec3(0);
@@ -329,17 +330,17 @@ namespace drb {
 
 			for (auto&& s : world->colliders.spheres) {
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
-				Mat4 const modelTr = SphereTransform(s.shape, s.transform);
+				Mat4 const modelTr = SphereTransform(s.shape, s.shape.Transform());
 				DrawMesh(use.mesh, shader, modelTr, staticColor);
 			}
 			
 			for (auto&& c : world->colliders.capsules) {
-				DrawCapsule(c.shape, shader, c.transform, staticColor);
+				DrawCapsule(c.shape, shader, c.shape.Transform(), staticColor);
 			}
 			
 			for (auto&& h : world->colliders.hulls) {
 				drb::Mesh::ScopedUse use{ meshes.at(&h.shape) };
-				DrawMesh(use.mesh, shader, h.transform, staticColor);
+				DrawMesh(use.mesh, shader, h.shape.Transform(), staticColor);
 			}
 
 			return *this;
@@ -416,15 +417,15 @@ namespace drb {
 		void DrawFaceClipPlanes(Convex const& cvx, Uint8 faceIdx, ShaderProgram const& prg, Mat4 const& tr, ColorInfo const& colorInfo)
 		{
 			// Draw clip planes
-			ForEachEdgeOfFace(cvx, faceIdx, [&](Convex::HalfEdge edge) {
+			cvx.ForEachEdgeOfFace(faceIdx, [&](Convex::HalfEdge edge) {
 
 					// Create a plane orthogonal to refFace and containing
 					// endpoints of edge
-					Convex::HalfEdge const twin = cvx.edges[edge.twin];
-					Vec3 const p0 = tr * Vec4(cvx.verts[edge.origin], 1);
-					Vec3 const p1 = tr * Vec4(cvx.verts[twin.origin], 1);
-					Vec3 const outwardNormal = Normalize(glm::cross(p1 - p0, cvx.faces[faceIdx].plane.n));
-					Plane const edgePlane = MakePlane(outwardNormal, p0); // normal pointing "outward" away from face center
+					Convex::HalfEdge const twin = cvx.GetEdge(edge.twin);
+					Vec3 const p0 = tr * Vec4(cvx.GetVert(edge.origin), 1);
+					Vec3 const p1 = tr * Vec4(cvx.GetVert(twin.origin), 1);
+					Vec3 const outwardNormal = Normalize(glm::cross(p1 - p0, cvx.GetFace(faceIdx).plane.n));
+					Plane const edgePlane = Plane::Make(outwardNormal, p0); // normal pointing "outward" away from face center
 
 					// Draw clip plane
 					{
@@ -453,29 +454,30 @@ namespace drb {
 
 		drb::Mesh MakeRenderMesh(Convex const& cvx)
 		{
-			if (cvx.verts.size() == 0) {
+			if (cvx.NumVerts() == 0) {
 				ASSERT(false, "Convex hull cannot be empty");
 				return drb::Mesh{};
 			}
 
 			// Construct vertex buffer interleaved with vertex normals and uvs
 			std::vector<float> verts;
-			verts.reserve(cvx.verts.size() * 8u);
+			verts.reserve(cvx.NumVerts() * 8u);
 
 			std::vector<glm::uvec3> indices;
-			indices.reserve(cvx.faces.size());
+			indices.reserve(cvx.NumFaces());
 
 			// Triangulate faces via "fan triangulation" and compute vertex normals
-			for (auto&& face : cvx.faces) {
+			auto const faces = cvx.GetFaces();
+			for (auto&& face : faces) {
 
 				Uint32 vertCount = 0u;
 				Uint32 faceIdx = static_cast<Uint32>(verts.size()) / 8u;
 
-				auto const e0 = cvx.edges[face.edge];
+				auto const e0 = cvx.GetEdge(face.edge);
 
 				auto PushVert = [&verts, &face, &cvx, &vertCount](unsigned vertIdx) {
 					// Insert world pos
-					Vec3 const v = cvx.verts[vertIdx];
+					Vec3 const v = cvx.GetVert(vertIdx);
 					verts.push_back(v.x);
 					verts.push_back(v.y);
 					verts.push_back(v.z);
@@ -497,7 +499,7 @@ namespace drb {
 				do {
 
 					PushVert(eCurr.origin);
-					eCurr = cvx.edges[eCurr.next];
+					eCurr = cvx.GetEdge(eCurr.next);
 
 				} while (eCurr != e0);
 
@@ -516,7 +518,7 @@ namespace drb {
 
 		static inline Mat4 SphereTransform(Sphere const& sph, Mat4 const& tr)
 		{
-			return tr * glm::scale(Mat4(1), Vec3(sph.r));
+			return tr * sph.Transform() * glm::scale(Mat4(1), Vec3(sph.r));
 		}
 
 		static inline Mat4 CubeTransform(Vec3 const& halfwidths, Mat4 const& tr)
@@ -530,7 +532,7 @@ namespace drb {
 
 			// Draw cylinder
 			{
-				modelTr = tr * glm::scale(Mat4(1), Vec3(cap.r - 0.01f, cap.h, cap.r - 0.01f)) * glm::rotate(Mat4(1), 0.5f * 3.142f, Vec3(1, 0, 0)); // first rotation is to correct z-up model
+				modelTr = tr * glm::scale(Mat4(1), Vec3(cap.r - 0.01f, cap.SegmentHalfLength(), cap.r - 0.01f)) * glm::rotate(Mat4(1), 0.5f * 3.142f, Vec3(1, 0, 0)); // first rotation is to correct z-up model
 
 				drb::Mesh::ScopedUse use{ drb::Mesh::Cylinder() };
 				DrawMesh(use.mesh, prg, modelTr, colorInfo);
@@ -538,7 +540,7 @@ namespace drb {
 
 			// Draw spheres
 			{
-				Segment segment{ CentralSegment(cap, tr) };
+				Segment segment{ cap.CentralSegment().Transformed(tr) };
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
 
 				// Draw bottom sphere

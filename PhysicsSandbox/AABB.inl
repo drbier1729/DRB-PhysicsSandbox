@@ -5,26 +5,49 @@ namespace drb {
 
 		inline Bool AABB::Intersects(AABB const& other) const
 		{
-			if (max.x < other.min.x || other.max.x < min.x) { return false; }
+			/*if (max.x < other.min.x || other.max.x < min.x) { return false; }
 			if (max.y < other.min.y || other.max.y < min.y) { return false; }
 			if (max.z < other.min.z || other.max.z < min.z) { return false; }
-			return true;
+			return true;*/
 			
-			//return not glm::any(glm::lessThan(max, other.min)) && 
-			//	   not glm::any(glm::lessThan(other.max, min));
+			return not ( glm::any(glm::lessThan(max, other.min)) ||
+				         glm::any(glm::lessThan(other.max, min)) );
 		}
+
+		inline AABBQuery AABB::Collide(AABB const& other) const
+		{
+			AABBQuery result{};
+
+			AABB const overlap = {
+				.max = glm::min(max, other.max),
+				.min = glm::max(min, other.min)
+			};
+
+			for (Int32 i = 0; i < 3; ++i)
+			{
+				Float32 const pen = overlap.max[i] - overlap.min[i];
+				if (pen < result.penetration)
+				{
+					result.penetration = pen;
+					result.axis = i;
+				}
+			}
+
+			return result;
+		}
+
 
 		inline Bool AABB::Contains(AABB const& other) const
 		{
-			return min.x <= other.min.x &&
+			/*return min.x <= other.min.x &&
 				min.y <= other.min.y &&
 				min.z <= other.min.z &&
 				max.x >= other.max.x &&
 				max.y >= other.max.y &&
-				max.z >= other.max.z;
+				max.z >= other.max.z;*/
 
-			//return glm::all(glm::lessThanEqual(min, other.min)) &&
-			//	   glm::all(glm::lessThanEqual(other.max, max));
+			return glm::all(glm::lessThanEqual(min, other.min)) &&
+				   glm::all(glm::greaterThanEqual(max, other.max));
 		}
 
 		inline Float32 AABB::DistSquaredFromPoint(Vec3 const& pt) const
@@ -67,6 +90,11 @@ namespace drb {
 		inline AABB AABB::Transformed(Mat4 const& transform) const
 		{
 			return Transformed(Mat3(transform), transform[3]);
+		}
+
+		inline AABB AABB::Transformed(Quat const& orientation, Vec3 const& pos) const
+		{
+			return Transformed(glm::toMat3(orientation), pos);
 		}
 
 		// See Realtime Collision Detection by Ericson, Ch 4

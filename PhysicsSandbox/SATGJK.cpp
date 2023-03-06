@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "SATGJK.h"
 
-#include "PhysicsGeometry.h"
+#include "Math.h"
 
 namespace drb::physics::util {
 	
@@ -105,13 +105,14 @@ namespace drb::physics::util {
 	{
 		// We perform all computations in local space of B
 		Mat4 const transform = glm::inverse(trB) * trA;
-
+		
 		FaceQuery result{};
 
-		Int32 const face_count = static_cast<Int32>(A.faces.size());
-		for (Int32 i = 0; i < face_count; ++i)
+		auto  const facesA    = A.GetFaces();
+		Int16 const faceCount = A.NumFaces();
+		for (Int16 i = 0; i < faceCount; ++i)
 		{
-			Plane const p = Transformed(A.faces[i].plane, transform);
+			Plane const p = facesA[i].plane.Transformed(transform);
 
 			auto const [support, proj, eID] = GetSupport(B, -p.n);
 			Float32 const separation = (-proj) - p.d;
@@ -137,41 +138,41 @@ namespace drb::physics::util {
 		// Find axis of minimum penetration
 		EdgeQuery result{};
 
-		Int32 const edgeCountA = static_cast<Int32>(A.edges.size());
-		Int32 const edgeCountB = static_cast<Int32>(B.edges.size());
+		auto const  edgesA     = A.GetEdges();
+		auto const  edgesB     = B.GetEdges();
+		Int16 const edgeCountA = A.NumHalfEdges();
+		Int16 const edgeCountB = B.NumHalfEdges();
 
 		for (Int32 i = 0; i < edgeCountA; i += 2)
 		{
-			Convex::HalfEdge const& edgeA = A.edges[i];
-			Convex::HalfEdge const& twinA = A.edges[i + 1];
+			Convex::HalfEdge const& edgeA = edgesA[i];
+			Convex::HalfEdge const& twinA = edgesA[i + 1];
 			ASSERT(edgeA.twin == i + 1 && twinA.twin == i, "A is invalid.");
 
 			// EdgeA segment and vector
-			Segment const eSegA = Transformed(
-				{
-					.b = A.verts[edgeA.origin],
-					.e = A.verts[twinA.origin]
-				}, 
-				transform);
+			Segment const eSegA = Segment{
+					.b = A.GetVert(edgeA.origin),
+					.e = A.GetVert(twinA.origin)
+				}.Transformed(transform);
 			Vec3 const eA = eSegA.e - eSegA.b;
 
 			// Normals of faces adjacent to edgeA
-			Vec3 const uA = Mat3(transform) * A.faces[edgeA.face].plane.n;
-			Vec3 const vA = Mat3(transform) * A.faces[twinA.face].plane.n;
+			Vec3 const uA = Mat3(transform) * A.GetFace(edgeA.face).plane.n;
+			Vec3 const vA = Mat3(transform) * A.GetFace(twinA.face).plane.n;
 
 			for (Int32 j = 0; j < edgeCountB; j += 2)
 			{
-				Convex::HalfEdge const& edgeB = B.edges[j];
-				Convex::HalfEdge const& twinB = B.edges[j + 1];
+				Convex::HalfEdge const& edgeB = edgesB[j];
+				Convex::HalfEdge const& twinB = edgesB[j + 1];
 				ASSERT(edgeB.twin == j + 1 && twinB.twin == j, "B is invalid.");
 
 				// EdgeB segment and vector
-				Segment const eSegB = { .b = B.verts[edgeB.origin], .e = B.verts[twinB.origin] };
+				Segment const eSegB = { .b = B.GetVert(edgeB.origin), .e = B.GetVert(twinB.origin) };
 				Vec3 const eB = eSegB.e - eSegB.b;
 
 				// Normals of faces adjacent to edgeB
-				Vec3 const uB = B.faces[edgeB.face].plane.n;
-				Vec3 const vB = B.faces[twinB.face].plane.n;
+				Vec3 const uB = B.GetFace(edgeB.face).plane.n;
+				Vec3 const vB = B.GetFace(twinB.face).plane.n;
 
 				if (IsMinkowskiFace(uA, vA, -eA, -uB, -vB, -eB))
 				{
@@ -199,7 +200,7 @@ namespace drb::physics::util {
 	// GJK: Point-Convex
 	ClosestPointsQuery GJK(Vec3 const& A_, Convex const& B, Mat4 const& trB, Simplex* seed)
 	{
-		ASSERT(B.verts.size() > 0, "Hull must be non empty");
+		ASSERT(B.NumVerts() > 0, "Hull must be non empty");
 
 		// Arbitrary -- could be set externally if we want
 		static constexpr Float32 tol = 1.0e-8f;
@@ -223,7 +224,7 @@ namespace drb::physics::util {
 			simplex.bestA = 0;
 			simplex.bestB = 0;
 
-			Vec3 const& initVertB = B.verts[B.edges[0].origin];
+			Vec3 const& initVertB = B.GetVert( B.GetEdge(0).origin );
 			simplex.PushVert(A, 0, initVertB, 0);
 		}
 		// Otherwise, update seed simplex with the new world positions of verts
@@ -244,7 +245,7 @@ namespace drb::physics::util {
 		{
 			return ClosestPointsQuery{
 				.ptA = A_,
-				.ptB = trB * Vec4(B.verts[0], 1),
+				.ptB = trB * Vec4(B.GetVert(0), 1),
 				.d2 = -1.0f
 			};
 		}
@@ -264,7 +265,7 @@ namespace drb::physics::util {
 		};
 
 		// Main loop
-		Int32 maxIters = static_cast<Int32>(B.verts.size());
+		Int16 maxIters = B.NumVerts();
 		while (maxIters-- > 0)
 		{
 			ASSERT(simplex.GetType() != Simplex::Type::NONE, "Invalid simplex");
@@ -366,7 +367,7 @@ namespace drb::physics::util {
 	// GJK: Segment-Convex
 	ClosestPointsQuery GJK(Segment const& A_, Convex const& B, Mat4 const& trB, Simplex* seed)
 	{
-		ASSERT(B.verts.size() > 0, "Hull must be non empty");
+		ASSERT(B.NumVerts() > 0, "Hull must be non empty");
 
 		// Arbitrary -- could be set externally if we want
 		static constexpr Float32 tol = 1.0e-8f;
@@ -380,7 +381,7 @@ namespace drb::physics::util {
 		// Transform A into local space of B so we can do fewer matrix
 		// multiplications in the main loop. Note that in this special
 		// case ALL COMPUTATIONS ARE IN LOCAL SPACE OF B
-		Segment const A = Transformed(A_, glm::inverse(trB));
+		Segment const A = A_.Transformed(glm::inverse(trB));
 
 		// If we didn't receive a seed, or we received an empty seed, initialize our simplex
 		if (simplex.GetType() == Simplex::Type::NONE)
@@ -389,7 +390,7 @@ namespace drb::physics::util {
 			simplex.bestA = 0;
 			simplex.bestB = 0;
 
-			Vec3 const& initVertB = B.verts[B.edges[0].origin];
+			Vec3 const& initVertB = B.GetVert(B.GetEdge(0).origin);
 			simplex.PushVert(A.b, 0, initVertB, 0);
 		}
 		// Otherwise, update seed simplex with the new world positions of verts
@@ -423,7 +424,7 @@ namespace drb::physics::util {
 		};
 
 		// Main loop
-		Int32 maxIters = static_cast<Int32>(B.verts.size());
+		Int16 maxIters = B.NumVerts();
 		while (maxIters-- > 0)
 		{
 			ASSERT(simplex.GetType() != Simplex::Type::NONE, "Invalid simplex");
@@ -537,8 +538,7 @@ namespace drb::physics::util {
 	{
 		ASSERT(false, "Not implemented");
 
-
-		ASSERT(A.verts.size() > 0 && B.verts.size() > 0, "Hulls must be non empty");
+		ASSERT(A.NumVerts() > 0 && B.NumVerts() > 0, "Hulls must be non empty");
 
 		// Arbitrary -- could be set externally if we want
 		static constexpr Float32 tolerance = 1.0e-8f;
@@ -555,8 +555,8 @@ namespace drb::physics::util {
 			simplex.bestA = 0;
 			simplex.bestB = 0;
 
-			Vec3 const& initVertA = A.verts[A.edges[0].origin];
-			Vec3 const& initVertB = B.verts[B.edges[0].origin];
+			Vec3 const& initVertA = A.GetVert(A.GetEdge(0).origin);
+			Vec3 const& initVertB = B.GetVert(B.GetEdge(0).origin);
 			simplex.PushVert(trA * Vec4(initVertA, 1), 0, trB * Vec4(initVertB, 1), 0);
 		}
 		// Otherwise, update seed simplex with the new world positions of verts
@@ -565,8 +565,8 @@ namespace drb::physics::util {
 			for (Uint8 i = 0; i < simplex.size; ++i)
 			{
 				// Local space vertex positions
-				Vec3 const& vA = A.verts[ A.edges[simplex.edgeIdxsA[i]].origin ];
-				Vec3 const& vB = B.verts[ B.edges[simplex.edgeIdxsB[i]].origin ];
+				Vec3 const& vA = A.GetVert( A.GetEdge(simplex.edgeIdxsA[i]).origin );
+				Vec3 const& vB = B.GetVert( B.GetEdge(simplex.edgeIdxsB[i]).origin );
 
 				// World space vertex positions
 				simplex.vertsA[i] = trA * Vec4(vA, 1);
@@ -592,7 +592,7 @@ namespace drb::physics::util {
 		};
 
 		// Main loop
-		Int32 maxIters = static_cast<Int32>(A.verts.size() * B.verts.size());
+		Int32 maxIters = static_cast<Int32>(A.NumVerts()) * static_cast<Int32>(B.NumVerts());
 		while (maxIters-- > 0)
 		{
 			ASSERT(simplex.GetType() != Simplex::Type::NONE, "Invalid simplex");
@@ -746,7 +746,7 @@ namespace drb::physics::util {
 		// // S. Cameron 1998 -- Enhanced GJK, and Ericson Ch.9.5.4)
 		static constexpr Uint8 hillClimbingThreshold = 10;
 
-		Uint8 const numVerts = static_cast<Uint8>(hull.verts.size());
+		Int16 const numVerts = hull.NumVerts();
 		if (numVerts > hillClimbingThreshold) 
 		{			
 			return GetSupportHillClimbing(hull, dir, hillClimbingHint);
@@ -757,7 +757,8 @@ namespace drb::physics::util {
 		Convex::VertID bestVert = Convex::INVALID_INDEX;
 		Float32 maxProjection   = std::numeric_limits<Float32>::lowest();	
 		Convex::VertID current  = 0;
-		for (auto && v : hull.verts)
+		auto const verts = hull.GetVerts();
+		for (auto && v : verts)
 		{
 			Float32 const projection = glm::dot(dir, v);
 			if (projection > maxProjection)
@@ -769,14 +770,14 @@ namespace drb::physics::util {
 			++current;
 		}
 
-		return CvxSupport{ .pt = hull.verts[bestVert], .proj = maxProjection, .e = hull.vertAdj[bestVert] };
+		return CvxSupport{ .pt = verts[bestVert], .proj = maxProjection, .e = hull.GetOneEdgeFrom(bestVert) };
 	}
 
 
 	// dir should be in hull's local space
 	static inline CvxSupport GetSupportHillClimbing(Convex const& hull, Vec3 const& dir, Convex::EdgeID e)
 	{
-		Convex::EdgeID const numEdges = static_cast<Convex::EdgeID>(hull.edges.size());
+		Int16 const numEdges = hull.NumHalfEdges();
 
 		ASSERT(numEdges > 0, "Hull is empty");
 		ASSERT(e < numEdges, "Index out of range.");
@@ -794,16 +795,16 @@ namespace drb::physics::util {
 		while(found && iterCount++ < numEdges)
 		{
 			found = false;
-			ForEachOneRingNeighbor(hull, e, [&](Convex::HalfEdge const& neighbor)
+			hull.ForEachOneRingNeighbor(e, [&](Convex::HalfEdge const& neighbor)
 				{
 					if (neighbor.origin != lastVisitedVertex)
 					{
-						Vec3 const    v = hull.verts[neighbor.origin];
+						Vec3 const    v = hull.GetVert(neighbor.origin);
 						Float32 const proj = glm::dot(dir, v);
 
 						if (proj > maxProj)
 						{
-							e = hull.edges[neighbor.twin].twin; // awkward way of extracting the EdgeID of neighbor
+							e = hull.GetEdge(neighbor.twin).twin; // awkward way of extracting the EdgeID of neighbor
 							maxProj = proj;
 							found = true;
 						}
@@ -814,7 +815,7 @@ namespace drb::physics::util {
 			// during next iteration -- note that this does not prevent
 			// cycles due to coplanar faces, so we must disallow coplanar
 			// faces during Convex creation.
-			lastVisitedVertex = hull.edges[e].origin;
+			lastVisitedVertex = hull.GetEdge(e).origin;
 		}
 
 		// If, on our last iteration, we still found a better vertex, then hill-climbing got 
@@ -822,7 +823,7 @@ namespace drb::physics::util {
 		ASSERT(not found, "Hill climbing failed to terminate.");
 
 		return CvxSupport{
-			.pt = hull.verts[lastVisitedVertex],
+			.pt = hull.GetVert(lastVisitedVertex),
 			.proj = maxProj,
 			.e = e 
 		};

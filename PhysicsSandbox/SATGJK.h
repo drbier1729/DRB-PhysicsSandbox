@@ -1,9 +1,13 @@
 #ifndef DRB_SATGJK_H
 #define DRB_SATGJK_H
 
-#include "PhysicsGeometry.h"
 #include "GeometryQueryDataStructures.h"
+#include "CollisionGeometry.h"
 
+// Note that none of these functions enquire about the local transform
+// of the shapes -- it is assumed that their world space transform is
+// described entirely by their vertex data and the matrices passed
+// in as arguments.
 namespace drb::physics::util {
 
 	// -----------------------------------------------------------------

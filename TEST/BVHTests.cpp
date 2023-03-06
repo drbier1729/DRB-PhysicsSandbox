@@ -27,6 +27,7 @@ namespace TEST
 		{
 			using drb::physics::BVHierarchy;
 			using drb::physics::BV;
+			using drb::physics::BVHandle;
 			using drb::physics::AABB;
 			using drb::Vec3;
 
@@ -34,14 +35,36 @@ namespace TEST
 			BVHierarchy bvh{};
 
 			// act
-			auto handle0 = bvh.Insert(AABB{ .max = Vec3(1), .min = Vec3(0) });
+
+			// force the tree's node pool to grow
+			std::vector<BVHandle> handles{};
+			for (auto i = 0; i < 64; ++i)
+			{
+				handles.push_back( bvh.Insert(AABB{ .max = Vec3(i), .min = Vec3(0) }) );
+			}
 
 			auto handle1 = bvh.Insert(AABB{ .max = Vec3(-1), .min = Vec3(-3) });
 
 			auto handle2 = bvh.Insert(AABB{.max = Vec3(10), .min = Vec3(3)});
 
+			bvh.Remove(handle1);
+
+
+			std::ofstream logFile{};
+			logFile.open("bvhTestOut.txt");
+
+			for (auto i = 0; i < 64; ++i)
+			{
+				auto* node = bvh.Find(handles[i]);
+				Assert::IsNotNull(node, L"Valid handle not found");
+				Assert::IsTrue(node->IsLeaf(), L"Node must be a leaf");
+				
+				logFile << "Leaf " << node->index << ": \t" 
+						<< "Parent = " << node->parent 
+						<< " / Children = " << node->children[0] << " " << node->children[1] << '\n';
+			}
+
 			// assert
-			bvh.Remove(handle0);
 		}
 	};
 }

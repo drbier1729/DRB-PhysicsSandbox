@@ -2,7 +2,7 @@
 #include "PhysicsWorld.h"
 
 #include "RayCast.h"
-#include "PhysicsGeometryQueries.h"
+#include "CollisionQueries.h"
 
 namespace drb::physics {
 
@@ -41,7 +41,7 @@ namespace drb::physics {
 				Mat4 const rbTr = rb.GetTransformMatrix();
 				rb.geometry->ForEachCollider([&]<Shape T>(CollisionShape<T> const& col) {
 
-					AABB const bounds = MakeAABB(col.shape, rbTr * col.transform);
+					AABB const bounds = col.shape.Bounds().Transformed(rbTr);
 					CollisionProxy& proxy = rbProxiesVec.emplace_back(CollisionProxy{ 
 						.rb = &rb, 
 						.shape = &col 
@@ -58,7 +58,7 @@ namespace drb::physics {
 		// Create the proxies and add them to the BVH
 		colliders.ForEachCollider([this]<Shape T>(CollisionShape<T> const& col) {
 			
-			AABB const bounds = MakeAABB(col.shape, col.transform);
+			AABB const bounds = col.shape.Bounds();
 			CollisionProxy& proxy = staticProxies.emplace_back(CollisionProxy{
 				.rb = &worldBody,
 				.shape = &col
@@ -149,7 +149,7 @@ namespace drb::physics {
 				// Update broadphase tree
 				for (auto&& proxy : bodyProxies[i])
 				{
-					AABB const localBounds = MakeAABB(*proxy.shape);
+					AABB const localBounds = proxy.shape->Bounds();
 					AABB const preBounds   = localBounds.Transformed(preTr);
 					AABB const postBounds  = localBounds.Transformed(postTr);
 
@@ -228,6 +228,17 @@ namespace drb::physics {
 			});
 		}
 
+		// Push all new potential collisions to contacts list
+		for (auto&& p : potentialCollisions)
+		{
+			auto it = contacts.find(p);
+			if (it == contacts.end())
+			{
+				contacts.emplace(p, ContactManifold{});
+			}
+		}
+
+		// Reset moved flags on bounding volumes
 		for (auto&& queryProxy : movedLastFrame)
 		{
 			bvhTree.SetMoved(queryProxy.bvHandle, false);
@@ -237,8 +248,11 @@ namespace drb::physics {
 
 	void World::DetectCollisionsNarrow()
 	{
-		for (auto&& p : potentialCollisions)
+		for (auto it = contacts.begin(); it != contacts.end();)
 		{
+			// Decompose into key (CollisionPair) and value (ContactManifold)
+			auto & [p, m] = *it;
+
 			auto const* shapeA = p.a.shape;
 			auto const* shapeB = p.b.shape;
 			ASSERT(shapeA && shapeB, "Neither shape should be nullptr");
@@ -246,29 +260,50 @@ namespace drb::physics {
 			Mat4 const trA = p.a.rb->GetTransformMatrix();
 			Mat4 const trB = p.b.rb->GetTransformMatrix();
 
-			// TODO : do midphase pre-checks
-			// - check for AABB intersection
-			// - check cached Axis or Simplex
-
-			ContactManifold const m = Collide(*shapeA, trA, *shapeB, trB);
+			// Midphase pre-checks
 			
-			if (m.numContacts > 0)
+			// 1) recheck fat AABBs for overlap -- if none, remove 
+			// the contact manifold
 			{
-				auto it = contacts.find(p);
-				if (it != contacts.end())
+				AABB const fatBoundsA = bvhTree.Find(p.a.bvHandle)->bv.fatBounds;
+				AABB const fatBoundsB = bvhTree.Find(p.b.bvHandle)->bv.fatBounds;
+				if (not fatBoundsA.Intersects(fatBoundsB))
 				{
-					it->second = m; // it->second.Update(m);
-				}
-				else
-				{
-					contacts.emplace(p, m);
+					it = contacts.erase(it);
+					continue;
 				}
 			}
-			else
+
+			// 2) check the tight AABBs for overlap -- if none,
+			// update the manifold (but don't overwrite the old
+			// manifold points bc we may reuse them soon)
 			{
-				contacts.erase(p);
+				AABB const boundsA = shapeA->Bounds();
+				AABB const boundsB = shapeB->Bounds();
+				if (not boundsA.Intersects(boundsB))
+				{
+					m.numContacts = 0;
+					++it;
+					continue;
+				}
 			}
+
+			// TODO:
+			// 3) check cached axis of least penetration or cached
+			// GJK simplex -- if separation, update the manifold 
+			// (but don't overwrite the old manifold points bc we 
+			// may reuse them soon)
+			//
+			//  --> update separation normal
+			//  --> update numContacts = 0
+			//  --> update cached simplex
+			//
+
+			// Do the full narrow phase collision detection and update the manifold
+			ContactManifold const newManifold = Collide(*shapeA, trA, *shapeB, trB);
+			m = newManifold; // m.Update(newManifold);
+			
+			++it;
 		}
-		
 	}
 }

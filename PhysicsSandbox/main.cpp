@@ -2,7 +2,7 @@
 
 
 #define RUN_TEST_MAIN 0
-#define MEM_DEBUG     1
+#define MEM_DEBUG     0
 
 #if MEM_DEBUG
 #define _CRT_MAP_ALLOC

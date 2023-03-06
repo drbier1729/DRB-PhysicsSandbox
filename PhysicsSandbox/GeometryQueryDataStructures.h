@@ -4,11 +4,18 @@
 namespace drb::physics {
 	// Fwd decls
 	class RigidBody;
-	struct CollisionShapeBase;
+	struct Collider;
 	
 	// ---------------------------------------------------------------------
 	// DATA STRUCTURES
 	// ---------------------------------------------------------------------
+
+	enum class Side
+	{
+		Back = -1,
+		On = 0,
+		Front = 1
+	};
 
 	// Used to identify which face, edge, or vertex of colliding objects are
 	// in contact. This is really only relevant for Convex and Mesh. For
@@ -24,14 +31,6 @@ namespace drb::physics {
 
 		Int16 index = -1;
 		Type  type = Type::NONE;
-	};
-
-
-	enum class Side
-	{
-		Back = -1,
-		On = 0,
-		Front = 1
 	};
 
 
@@ -60,9 +59,9 @@ namespace drb::physics {
 
 	struct CollisionProxy
 	{
-		Int64					  bvHandle     = -1;
-		RigidBody*                rb           = nullptr;
-		CollisionShapeBase const* shape        = nullptr;
+		Int64			bvHandle     = -1;
+		RigidBody*      rb           = nullptr;
+		Collider const* shape        = nullptr;
 
 		auto operator<=>(CollisionProxy const& other) const = default;
 	};

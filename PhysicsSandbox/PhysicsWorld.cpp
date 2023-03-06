@@ -149,9 +149,8 @@ namespace drb::physics {
 				// Update broadphase tree
 				for (auto&& proxy : bodyProxies[i])
 				{
-					AABB const localBounds = proxy.shape->Bounds();
-					AABB const preBounds   = localBounds.Transformed(preTr);
-					AABB const postBounds  = localBounds.Transformed(postTr);
+					AABB const preBounds  = proxy.shape->Bounds(preTr);
+					AABB const postBounds = proxy.shape->Bounds(postTr);
 
 					Vec3 const disp = postBounds.Center() - preBounds.Center();
 

@@ -126,35 +126,35 @@ namespace drb {
 			AABB b{};
 
 			for (auto&& s : rb.geometry->spheres) {
-				modelTr = rbTr * s.shape.Transform();
+				modelTr = rbTr;
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
 				modelTr = SphereTransform(s.shape, modelTr);
 				DrawMesh(use.mesh, shader, modelTr, ci);
-				
+
 				EnableWireframeMode();
-				b = s.shape.Bounds().Transformed(modelTr);
+				b = s.shape.Bounds(rbTr);
 				DrawAABB(b, shader, ci);
 				EnableWireframeMode(false);
 			}
 
 			for (auto&& c : rb.geometry->capsules) {
-				modelTr = rbTr * c.shape.Transform();
+				modelTr = rbTr;
 				DrawCapsule(c.shape, shader, modelTr, ci);
 
 				EnableWireframeMode();
-				b = c.shape.Bounds().Transformed(modelTr);
+				b = c.shape.Bounds(rbTr);
 				DrawAABB(b, shader, ci);
 				EnableWireframeMode(false);
 			}
 
 			for (auto&& h : rb.geometry->hulls) {
-				
 				modelTr = rbTr * h.shape.Transform();
 				drb::Mesh::ScopedUse use{ meshes.at(&h.shape) };
 				DrawMesh(use.mesh, shader, modelTr, ci);
 
+
 				EnableWireframeMode();
-				b = h.shape.Bounds().Transformed(modelTr);
+				b = h.shape.Bounds(rbTr);
 				DrawAABB(b, shader, ci);
 				EnableWireframeMode(false);
 			}
@@ -201,14 +201,14 @@ namespace drb {
 			Mat4 const scale = glm::scale(Mat4(1), Vec3(1.03f));
 			
 			for (auto&& s : rb.geometry->spheres) {
-				modelTr = rbTr * s.shape.Transform() * scale;
+				modelTr = rbTr * scale;
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
 				modelTr = SphereTransform(s.shape, modelTr);
 				DrawMesh(use.mesh, shader, modelTr, ci);
 			}
 
 			for (auto&& c : rb.geometry->capsules) {
-				modelTr = rbTr * c.shape.Transform() * scale;
+				modelTr = rbTr * scale;
 				DrawCapsule(c.shape, shader, modelTr, ci);
 			}
 
@@ -330,7 +330,7 @@ namespace drb {
 
 			for (auto&& s : world->colliders.spheres) {
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
-				Mat4 const modelTr = SphereTransform(s.shape, s.shape.Transform());
+				Mat4 const modelTr = SphereTransform(s.shape, Mat4(1));
 				DrawMesh(use.mesh, shader, modelTr, staticColor);
 			}
 			
@@ -532,7 +532,7 @@ namespace drb {
 
 			// Draw cylinder
 			{
-				modelTr = tr * glm::scale(Mat4(1), Vec3(cap.r - 0.01f, cap.SegmentHalfLength(), cap.r - 0.01f)) * glm::rotate(Mat4(1), 0.5f * 3.142f, Vec3(1, 0, 0)); // first rotation is to correct z-up model
+				modelTr = tr * cap.Transform() * glm::scale(Mat4(1), Vec3(cap.r - 0.01f, cap.SegmentHalfLength(), cap.r - 0.01f)) * glm::rotate(Mat4(1), 0.5f * 3.142f, Vec3(1, 0, 0)); // first rotation is to correct z-up model
 
 				drb::Mesh::ScopedUse use{ drb::Mesh::Cylinder() };
 				DrawMesh(use.mesh, prg, modelTr, colorInfo);

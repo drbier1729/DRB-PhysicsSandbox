@@ -12,7 +12,7 @@ inline Quat Orientation() const; \
 inline void SetOrientation(Quat const& newOrientation); \
 inline Mat4 Transform() const; \
 inline void SetTransform(Mat4 const& newTransform); \
-inline AABB Bounds() const
+inline AABB Bounds(Mat4 const& worldTransform = Mat4(1)) const
 
 namespace drb::physics {
 
@@ -167,7 +167,7 @@ namespace drb::physics {
 		~Convex() noexcept;
 
 		// Access to centroid data
-		inline Vec3 const&               LocalCentroid() const;
+		inline Vec3		                 LocalCentroid() const;
 		inline Vec3						 Centroid() const;
 		inline void						 SetCentroid(Vec3 const& newC);
 

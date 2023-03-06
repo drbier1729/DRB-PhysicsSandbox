@@ -46,10 +46,11 @@ namespace drb::physics {
 		c = newTr[3];
 	}
 
-	inline AABB Sphere::Bounds() const
+	inline AABB Sphere::Bounds(Mat4 const& worldTr) const
 	{
-		Vec3 const halfwidths = Vec3(r);
-		return AABB{ .max = c + halfwidths, .min = c - halfwidths };
+		Vec3 const extents = Vec3(r);
+		Vec3 const worldC = c + Vec3(worldTr[3]);
+		return AABB{ .max = worldC + extents, .min = worldC - extents};
 	}
 	// -------------------------------------------------------------------------
 	// Capsule
@@ -96,8 +97,8 @@ namespace drb::physics {
 	inline void Capsule::SetPosition(Vec3 const& newC)
 	{
 		Vec3 const dir = Direction();
-		seg.b = newC - h * newC;
-		seg.e = newC + h * newC;
+		seg.b = newC - h * dir;
+		seg.e = newC + h * dir;
 	}
 
 	inline Quat Capsule::Orientation() const
@@ -124,12 +125,12 @@ namespace drb::physics {
 		seg = seg.Transformed(newTr);
 	}
 
-	inline AABB Capsule::Bounds() const
+	inline AABB Capsule::Bounds(Mat4 const& worldTr) const
 	{
 		Vec3 const extents = Vec3(r, h + r, r);
 		AABB const boundsLocal{ .max = extents, .min = -extents };
 
-		return boundsLocal.Transformed(Orientation(), Position());
+		return boundsLocal.Transformed(worldTr * Transform());
 	}
 
 	// -------------------------------------------------------------------------
@@ -182,7 +183,8 @@ namespace drb::physics {
 
 	inline Mat4 Convex::Transform() const
 	{
-		return glm::translate(Mat4(1), position) * glm::toMat4(orientation);
+		// Orientation is applied to the object with its centroid at the origin
+		return glm::translate(Mat4(1), Centroid()) * glm::toMat4(orientation) * glm::translate(Mat4(1), -LocalCentroid());
 	}
 
 	inline void Convex::SetTransform(Mat4 const& newTr)
@@ -191,12 +193,12 @@ namespace drb::physics {
 		orientation = Quat(newTr);
 	}
 
-	inline AABB Convex::Bounds() const
+	inline AABB Convex::Bounds(Mat4 const& worldTr) const
 	{
-		return bounds.Transformed(orientation, position);
+		return bounds.Transformed(worldTr * Transform());
 	}
 
-	inline Vec3 const& Convex::LocalCentroid() const
+	inline Vec3 Convex::LocalCentroid() const
 	{
 		return data ? data->localCentroid : Vec3(0);
 	}
@@ -469,9 +471,9 @@ switch (type) {\
 	{
 		CONVERT_TO_SHAPE_AND_CALL_METHOD(void, SetTransform, newTransform)
 	}
-	AABB Collider::Bounds() const
+	AABB Collider::Bounds(Mat4 const& worldTr) const
 	{
-		CONVERT_TO_SHAPE_AND_CALL_CONST_METHOD(AABB, Bounds)
+		CONVERT_TO_SHAPE_AND_CALL_CONST_METHOD(AABB, Bounds, worldTr)
 	}
 
 #undef CONVERT_TO_SHAPE_AND_CALL_METHOD

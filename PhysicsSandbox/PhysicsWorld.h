@@ -28,19 +28,19 @@ namespace drb::physics {
 
 	private:
 		// Dynamic and kinematic objects -- capacity == maxBodies
-		std::vector<RigidBody>   bodies;
+		std::vector<RigidBody>     bodies;
 			
 		// RigidBody used to handle collisions with static colliders
-		RigidBody		         worldBody;
+		RigidBody		           worldBody;
 
 		// Static collision geometry -- capacity == maxColliders
-		CollisionGeometry        colliders;
+		std::vector<CollisionGeometry> colliders;
 
 		// Dynamic AABB hierarchy and supporting data for broadphase 
 		// collision detection
 		BVHierarchy			       bvhTree;
 		std::vector<ProxyArray>    bodyProxies;    // parallel with bodies array
-		ProxyArray                 staticProxies;  // all proxies for static geometry
+		std::vector<ProxyArray>    staticProxies;  // all proxies for static geometry
 		ProxyArray                 movedLastFrame;
 		std::vector<CollisionPair> potentialCollisions;
 	
@@ -73,8 +73,8 @@ namespace drb::physics {
 		inline RigidBody& CreateRigidBody(RigidBody const& source);
 		inline RigidBody& CreateRigidBody(RigidBody&& source = {});
 
-		inline World& AddStaticCollider(Shape auto&& shape);
-		inline World& AddStaticCollider(Shape auto const& shape);
+		inline World& CreateStaticCollisionGeometry(CollisionGeometry&& geom);
+		inline World& CreateStaticCollisionGeometry(CollisionGeometry const& geom);
 
 		inline void Clear();
 			

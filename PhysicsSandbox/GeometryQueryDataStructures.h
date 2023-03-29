@@ -1,10 +1,12 @@
 #ifndef DRB_GEOMETRYQUERYDATASTRUCTURES_H
 #define DRB_GEOMETRYQUERYDATASTRUCTURES_H
 
+
+#include "CollisionGeometry.h"
+
 namespace drb::physics {
 	// Fwd decls
 	class RigidBody;
-	struct Collider;
 	
 	// ---------------------------------------------------------------------
 	// DATA STRUCTURES
@@ -48,7 +50,7 @@ namespace drb::physics {
 
 	struct ContactManifold
 	{
-		static constexpr Uint32 MAX_CONTACTS = 4u;
+		static constexpr Uint32 MAX_CONTACTS = 8u;
 
 		Feature featureA{}, featureB{}; // either face or edge or vertex ... TODO : should be tracked per Contact?
 		Contact contacts[MAX_CONTACTS] = {};
@@ -61,7 +63,7 @@ namespace drb::physics {
 	{
 		Int64			bvHandle     = -1;
 		RigidBody*      rb           = nullptr;
-		Collider const* shape        = nullptr;
+		ConstShapePtr   shape        = {};
 
 		auto operator<=>(CollisionProxy const& other) const = default;
 	};

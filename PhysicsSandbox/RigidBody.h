@@ -10,7 +10,7 @@ namespace drb {
 
 		// Class for Dynamic and Kinematic physics objects. Static physics objects can just use
 		// the collision geometry directly. See "PhysicsGeometry.h".
-		class alignas(16) RigidBody
+		class alignas(64) RigidBody
 		{
 		public:
 			friend class World;
@@ -32,8 +32,8 @@ namespace drb {
 			Vec3    position = {}; // world-space coords of center of mass
 			Vec3    prevPosition = {};
 			Vec3    linearVelocity = {};
-			Float32 invMass = 1.0f;
-			Float32 gravityScale = 1.0f;
+			Float32 invMass = 0.0f;
+			Float32 gravityScale = 0.0f;
 
 			Quat    orientation = { 1, 0 ,0, 0 };
 
@@ -41,7 +41,7 @@ namespace drb {
 
 			Quat prevOrientation = { 1, 0, 0, 0 };
 			Vec3 angularVelocity = {};
-			Mat3 invInertiaLocal = Mat4(1);
+			Mat3 invInertiaLocal = {};
 
 			// -- 128 bytes to here --
 
@@ -54,9 +54,10 @@ namespace drb {
 			Float32 friction = 0.0f;
 			Float32 restitution = 0.0f;
 
-			std::shared_ptr<CollisionGeometry const> geometry = {};
+			std::shared_ptr<CollisionGeometry const> geometry = nullptr;
 
-			//class GameObject* owner;
+			char pad_[8] = {};
+			//e.g. class GameObject* owner;
 
 			// -- 192 bytes to here --
 
@@ -124,7 +125,7 @@ namespace drb {
 
 			inline RigidBody& SetType(RigidBody::Type type);
 
-			inline RigidBody& SetCollisionGeometry(std::shared_ptr<CollisionGeometry const> const& geomPtr);
+			inline RigidBody& SetCollisionGeometry(std::shared_ptr<CollisionGeometry const> geomPtr);
 			inline RigidBody& SetCollisionGeometry(CollisionGeometry const* geomPtr);
 
 			

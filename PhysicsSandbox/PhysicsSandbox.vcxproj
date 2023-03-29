@@ -169,6 +169,7 @@
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="CollisionQueries.cpp" />
     <ClCompile Include="DynamicBVH.cpp" />
+    <ClCompile Include="FixedObjectPool.cpp" />
     <ClCompile Include="FrameListener.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">pch.h</PrecompiledHeaderFile>
@@ -188,8 +189,6 @@
     <ClCompile Include="GeometryQueryDataStructures.cpp" />
     <ClCompile Include="Math.cpp" />
     <ClCompile Include="PhysicsDebugDrawing.cpp" />
-    <ClCompile Include="PhysicsGeometryQueries.cpp" />
-    <ClCompile Include="PhysicsGeometry.cpp" />
     <ClCompile Include="Mesh.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">pch.h</PrecompiledHeaderFile>
@@ -214,6 +213,7 @@
     <ClCompile Include="RigidBody.cpp" />
     <ClCompile Include="SATGJK.cpp" />
     <ClCompile Include="SceneInspector.cpp" />
+    <ClCompile Include="SparseVector.cpp" />
     <ClCompile Include="StackAllocator.cpp" />
     <ClCompile Include="WorldStateRecorder.cpp" />
     <ClCompile Include="Shader.cpp">
@@ -236,6 +236,7 @@
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CollisionQueries.h" />
     <ClInclude Include="DynamicBVH.h" />
+    <ClInclude Include="FixedObjectPool.h" />
     <ClInclude Include="FrameListener.h" />
     <ClInclude Include="FrameTimer.h" />
     <ClInclude Include="FunctionCaller.h" />
@@ -245,8 +246,6 @@
     <ClInclude Include="GeometryQueryDataStructures.h" />
     <ClInclude Include="Math.h" />
     <ClInclude Include="PhysicsDebugDrawing.h" />
-    <ClInclude Include="PhysicsGeometryQueries.h" />
-    <ClInclude Include="PhysicsGeometry.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="PhysicsSandboxApp.h" />
@@ -255,6 +254,7 @@
     <ClInclude Include="RigidBody.h" />
     <ClInclude Include="SATGJK.h" />
     <ClInclude Include="SceneInspector.h" />
+    <ClInclude Include="SparseVector.h" />
     <ClInclude Include="StackAllocator.h" />
     <ClInclude Include="WorldStateRecorder.h" />
     <ClInclude Include="Shader.h" />
@@ -271,8 +271,6 @@
     <None Include="FrameTimer.inl" />
     <None Include="Mesh.inl" />
     <None Include="PhysicsDebugDrawing.inl" />
-    <None Include="PhysicsGeometry.inl" />
-    <None Include="PhysicsGeometryQueries.inl" />
     <None Include="PhysicsWorld.inl" />
     <None Include="RayCast.inl" />
     <None Include="RigidBody.inl" />

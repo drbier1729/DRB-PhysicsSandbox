@@ -60,6 +60,29 @@ namespace drb {
 		// Returns the arena and abandons management
 		Arena Release();
 	};
+
+	class StackMemoryResource : public std::pmr::memory_resource
+	{
+	private:
+		StackAllocator alloc;
+
+	public:
+		StackMemoryResource(void* arena, std::size_t capacity) : alloc{ arena, capacity } {}
+		~StackMemoryResource() noexcept override = default;
+
+	private:
+		[[nodiscard]] void* do_allocate(std::size_t bytes, std::size_t alignment) override
+		{
+			return alloc.Alloc(bytes, alignment);
+		}
+
+		void do_deallocate(void*, std::size_t, std::size_t) override {}
+
+		bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override 
+		{
+			return this == &other;
+		}
+	};
 }
 
 #include "StackAllocator.inl"

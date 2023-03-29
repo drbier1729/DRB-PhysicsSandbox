@@ -1,6 +1,4 @@
-namespace drb {
-
-	namespace physics {
+namespace drb::physics {
 
 		inline RigidBody& World::CreateRigidBody(RigidBody&& source)
 		{
@@ -14,19 +12,19 @@ namespace drb {
 			return bodies.emplace_back(source);
 		}
 
-		inline World& World::AddStaticCollider(Shape auto&& shape)
+		inline World& World::CreateStaticCollisionGeometry(CollisionGeometry&& geom)
 		{
 			ASSERT(not locked, "Cannot add static colliders when world is locked");
 
-			colliders.AddCollider(std::forward<decltype(shape)>(shape), 0.0f);
+			colliders.emplace_back(std::forward<CollisionGeometry>(geom));
 			return *this;
 		}
 
-		inline World& World::AddStaticCollider(Shape auto const& shape)
+		inline World& World::CreateStaticCollisionGeometry(CollisionGeometry const& geom)
 		{
 			ASSERT(not locked, "Cannot add static colliders when world is locked");
-		
-			colliders.AddCollider(shape, 0.0f);
+
+			colliders.emplace_back(geom);
 			return *this;
 		}
 
@@ -35,6 +33,5 @@ namespace drb {
 			// Reverse order of construction
 			// ...
 		}
-	}
 
 }

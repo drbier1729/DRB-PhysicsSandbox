@@ -4,29 +4,37 @@
 #include "AABB.h"
 #include "GeometryPrimitives.h"
 
+// Pseudo-polymorphic shape interface
 #define DRB_SHAPE_INTERFACE() \
 inline Mat3 InertiaTensorAbout(Vec3 const& pt) const; \
 inline Vec3 Position() const; \
 inline void SetPosition(Vec3 const& newPosition); \
+inline Vec3 Centroid() const; \
+inline void SetCentroid(Vec3 const& newCentroid); \
 inline Quat Orientation() const; \
 inline void SetOrientation(Quat const& newOrientation); \
 inline Mat4 Transform() const; \
 inline void SetTransform(Mat4 const& newTransform); \
-inline AABB Bounds(Mat4 const& worldTransform = Mat4(1)) const
+inline AABB Bounds(Mat4 const& worldTransform = Mat4(1)) const; \
 
 namespace drb::physics {
 
+	// -------------------------------------------------------------------------
+	// Collision Shape Types
+	// -------------------------------------------------------------------------
+	
 	enum class ColliderType
 	{
 		NONE = 0,
 		Sphere = 1,
 		Capsule = 2,
-		Convex = 3,
-		Mesh = 4
+		Box = 3,
+		Convex = 4
 	};
 
 	struct Sphere
 	{
+		friend struct ColliderSettings;
 		static constexpr auto type = ColliderType::Sphere;
 
 		Vec3    c; // world space centroid
@@ -42,6 +50,7 @@ namespace drb::physics {
 	// orientation relative to this default.
 	struct Capsule
 	{
+		friend struct ColliderSettings;
 		static constexpr auto type = ColliderType::Capsule;
 
 	private:
@@ -52,16 +61,11 @@ namespace drb::physics {
 		Float32 r;   // radius
 
 	public:
+    	Capsule() = default;
 		Capsule(Segment const& centralSeg, Float32 radius);
 		Capsule(Quat const& orientation, Vec3 pos, Float32 segmentHalfLength, Float32 radius);
 		Capsule(Mat3 const& orientation, Vec3 pos, Float32 segmentHalfLength, Float32 radius);
-		
-		Capsule() = default;
-		Capsule(Capsule const&) = default;
-		Capsule(Capsule &&) = default;
-		Capsule& operator=(Capsule const&) = default;
-		Capsule& operator=(Capsule &&) = default;
-		~Capsule() noexcept = default;
+
 
 		Segment const& CentralSegment() const;
 		Float32        SegmentHalfLength() const;
@@ -75,16 +79,58 @@ namespace drb::physics {
 	};
 
 
+	// Oriented-Bounding Box data structure
+	struct Box
+	{
+		friend struct ColliderSettings;
+		static constexpr auto type = ColliderType::Box;
+
+		enum class Face
+		{
+			Right  = 0, // +x direction in local space
+			Top    = 1, // +y 
+			Front  = 2, // +z
+			Left   = 3, // -x
+			Bottom = 4, // -y
+			Back   = 5, // -z
+			COUNT  = 6
+		};
+
+		Vec3 extents;     // halfwidth extents
+		Vec3 position;    // center in world space
+		Mat3 orientation; // orientation in world space
+
+	private:
+		char _pad[4];     // padding (can be used for something else...)
+
+	public:
+		Box() = default;
+		Box(Vec3 const& halfwidths, Vec3 const& position = Vec3(0), Mat3 const& orientation = Mat3(1));
+		Box(Vec3 const& halfwidths, Vec3 const& position, Quat const& orientation);
+		
+		// Return values are in local space
+		Polygon FaceAsPolygon(Face face) const;
+		Vec3    FaceNormal(Face face) const;
+		Face    SupportingFace(Vec3 const& localDir) const;
+		Segment SupportingEdge(Vec3 const& localDir) const;
+		Segment SupportingEdgeWithDirection(Int32 axisDir, Vec3 const& localDir) const;
+		Segment EdgeAsSegment(Face adjFace1, Face adjFace2) const;
+
+		DRB_SHAPE_INTERFACE();
+	};
+
+
 	// This assumes (but does not check):
-	// -- local-space centroid is at the origin
 	// -- no coplanar (or nearly coplanar) faces
 	// -- halfedges are stored adjacent to their twin
 	// -- face plane normals point outward
 	// -- each face has counterclockwise winding of vertices
 	// -- each vertex, edge, and face is unique
 	// -- the hull is, indeed, a convex hull
+	// -- vertices have been sensibly "merged"
 	struct Convex
 	{
+		friend struct ColliderSettings;
 		static constexpr auto type = ColliderType::Convex;
 
 		// ------------------
@@ -153,10 +199,10 @@ namespace drb::physics {
 	public:
 		// Constructors + Destructor
 		Convex() = default;
-
+		
 		Convex(Vec3 const* verts, EdgeID const* vertAdj, VertID numVerts,
-			   HalfEdge const* edges,                    EdgeID numHalfEdges,
-			   Face const* faces,                        FaceID numFaces);
+			HalfEdge const* edges, EdgeID numHalfEdges,
+			Face const* faces, FaceID numFaces);
 
 		Convex(Convex const& src);
 		Convex& operator=(Convex const& other);
@@ -168,8 +214,6 @@ namespace drb::physics {
 
 		// Access to centroid data
 		inline Vec3		                 LocalCentroid() const;
-		inline Vec3						 Centroid() const;
-		inline void						 SetCentroid(Vec3 const& newC);
 
 		// Indexed access to individual data elements
 		inline Vec3 const&               GetVert(VertID index) const;
@@ -188,9 +232,14 @@ namespace drb::physics {
 		inline std::span<HalfEdge const> GetEdges() const;
 		inline std::span<Face const>     GetFaces() const;
 
+		inline Vec3 const*               GetRawVerts() const;
+		inline EdgeID const*             GetRawVertAdjs() const;
+		inline HalfEdge const*           GetRawEdges() const;
+		inline Face const*               GetRawFaces() const;
+
 		// Iteration methods
-		void							 ForEachOneRingNeighbor(EdgeID start, std::invocable<HalfEdge> auto fn) const;
-		void							 ForEachEdgeOfFace(FaceID face, std::invocable<HalfEdge> auto fn) const;
+		void							 ForEachOneRingNeighbor(EdgeID start, std::invocable<HalfEdge> auto&& fn) const;
+		void							 ForEachEdgeOfFace(FaceID face, std::invocable<HalfEdge> auto&& fn) const;
 		
 		// Situtational methods
 		Polygon							 FaceAsPolygon(FaceID face, Mat4 const& tr = Mat4(1)) const;
@@ -210,87 +259,103 @@ namespace drb::physics {
 		inline EdgeID* GetRawVertAdjs();
 		inline HalfEdge* GetRawEdges();
 		inline Face* GetRawFaces();
-		inline Vec3 const* GetRawVerts() const;
-		inline EdgeID const* GetRawVertAdjs() const;
-		inline HalfEdge const* GetRawEdges() const;
-		inline Face const* GetRawFaces() const;
 
 		// Make sure that the offset type (Int16) is large enough for our maximum data
 		static constexpr SizeT MAX_DATA_BYTES = Convex::MAX_SIZE * (sizeof(Vec3) + sizeof(Convex::EdgeID) + sizeof(Convex::HalfEdge) + sizeof(Convex::Face)) + sizeof(Convex::Header) + alignof(Vec3) + alignof(Convex::EdgeID) + alignof(Convex::HalfEdge) + alignof(Convex::Face) + alignof(Convex::Header);
 		static_assert(Convex::MAX_DATA_BYTES < std::numeric_limits<Int16>::max());
 	};
 
-
 	static_assert(sizeof(Sphere) == 16);
 	static_assert(sizeof(Capsule) == 32);
+	static_assert(sizeof(Box) == 64);
 	static_assert(sizeof(Convex) == 64);
 
-
+	// -------------------------------------------------------------------------
+	// Concepts
+	// -------------------------------------------------------------------------
 	template<typename T>
 	concept Shape = std::same_as<T, Sphere> ||
 		std::same_as<T, Capsule> ||
+		std::same_as<T, Box> ||
 		std::same_as<T, Convex>;
 
+	template<typename Fn>
+	concept ConstShapeFn = std::invocable<Fn, Sphere const&>&&
+		std::invocable<Fn, Capsule const&>&&
+		std::invocable<Fn, Box const&>&&
+		std::invocable<Fn, Convex const&>;
 
-	struct Collider
+	template<typename Fn>
+	concept ShapeFn = std::invocable<Fn, Sphere&>&&
+		std::invocable<Fn, Capsule&>&&
+		std::invocable<Fn, Box&>&&
+		std::invocable<Fn, Convex&>;
+
+
+	// -------------------------------------------------------------------------
+	// Pseudo-polymorphic access
+	// -------------------------------------------------------------------------
+	using ConstShapePtr = std::variant<Sphere const*, Capsule const*, Box const*, Convex const*>;
+	
+
+	// -------------------------------------------------------------------------
+	// Pseudo-polymorphic construction
+	// -------------------------------------------------------------------------
+	struct ColliderSettings
 	{
-	protected:
+		friend struct CollisionGeometry;
+
+		SizeT        index = 0;
 		ColliderType type = ColliderType::NONE;
-		Float32 mass;
-	public:
-		Collider(ColliderType type, Float32 mass = 1.0f) : type{ type }, mass{ mass } {}
-
-		inline ColliderType Type() const;
-		inline Float32 Mass() const;
-
-		template<class RetType, class Fn, class ... Args>
-		RetType CallOnShape(Fn func, Args && ... args) const;
-
-		DRB_SHAPE_INTERFACE();
+		Float32	     relativeMass = 0.0f;
+		Vec3		 centroid = {};
 	};
 
 
-	template<Shape ShapeType>
-	struct CollisionShape : public Collider
+	// -------------------------------------------------------------------------
+	// Assembly of Colliders
+	// -------------------------------------------------------------------------
+	struct CollisionGeometry : public std::enable_shared_from_this<CollisionGeometry>
 	{
-		CollisionShape(ShapeType const& shape, Float32 mass = 1.0f)
-			: Collider{ShapeType::type, mass}, shape{shape} 
-		{}
+		friend class World;
+		#ifdef _DEBUG
+		friend class DebugRenderer;
+		#endif
 
-		ShapeType shape;
+	private:
+		std::vector<Sphere>			  spheres{};
+		std::vector<Capsule>		  capsules{};
+		std::vector<Box>			  boxes{};
+		std::vector<Convex>			  hulls{};
+		std::vector<ColliderSettings> settings{};
+
+		Mat3    invInertia{0.0f};
+		Float32 invMass{ 0.0f };
+		Vec3    centerOfMass{ 0.0f }; // in local space
+		AABB    bounds{};
+		Bool    locked = false;
+
+	public:		
+		// Accessors
+		void               ForEachCollider(ConstShapeFn auto&& fn) const;
+					      
+		inline Mat3 const& InverseInertia() const;
+		inline Float32     InverseMass() const;
+		inline Vec3 const& CenterOfMass() const;
+		inline AABB const& Bounds() const;
+		inline SizeT       Size() const;
+
+		// Manipulators
+		inline void        Reserve(SizeT newCapacities);
+
+		CollisionGeometry& AddCollider(Shape auto const& collider, Float32 mass = 0.0f);
+		CollisionGeometry& AddCollider(Shape auto && collider, Float32 mass = 0.0f);
+		void			   Bake(); // Must be called after all colliders have been added
+
+	private:
+		void ForEachCollider(ShapeFn auto&& fn);
 	};
-
-
-	struct CollisionGeometry
-	{
-		std::vector<CollisionShape<Sphere>>  spheres;
-		std::vector<CollisionShape<Capsule>> capsules;
-		std::vector<CollisionShape<Convex>>  hulls;
-
-		Mat3    invInertia;
-		Float32 invMass;
-		Vec3    centerOfMass; // in local space
-		AABB    bounds;
-		Bool    locked;
-
-		// Must be called by user after all colliders have been added. Computes 
-		// the mass, center of mass, and local inertia tensor, plus a local space
-		// bounding box.
-		void Bake();
-
-		CollisionGeometry& AddCollider(Shape auto&& shape, Float32 mass = 0.0f);
-
-		CollisionGeometry& AddCollider(Shape auto const& shape, Float32 mass = 0.0f);
-
-		template<class Fn>
-		void ForEachCollider(Fn fn);
-
-		template<class Fn>
-		void ForEachCollider(Fn fn) const;
-
-		inline Int32 Size() const;
-		inline void  Reserve(Int32 newCap);
-	};
+	
 }
 
 #undef DRB_SHAPE_INTERFACE

@@ -10,17 +10,21 @@
 namespace drb::physics {
 
 	namespace util {
-		// Downcasts c based on its type then returns a reference to its "shape" field
-		template<Shape T> T const& ExtractShape(Collider const& c);
-
 		// These functions "extract" the correct shape types from A and B then call the 
-		// correct Collide overload
-		static inline ContactManifold CollideSphereSphere(Collider const& A, Mat4 const& trA, Collider const& B, Mat4 const& trB);
-		static inline ContactManifold CollideSphereCapsule(Collider const& A, Mat4 const& trA, Collider const& B, Mat4 const& trB);
-		static inline ContactManifold CollideSphereConvex(Collider const& A, Mat4 const& trA, Collider const& B, Mat4 const& trB);
-		static inline ContactManifold CollideCapsuleCapsule(Collider const& A, Mat4 const& trA, Collider const& B, Mat4 const& trB);
-		static inline ContactManifold CollideCapsuleConvex(Collider const& A, Mat4 const& trA, Collider const& B, Mat4 const& trB);
-		static inline ContactManifold CollideConvexConvex(Collider const& A, Mat4 const& trA, Collider const& B, Mat4 const& trB);
+		// correct Collide overload		
+		static inline ContactManifold CollideSphereSphere(ConstShapePtr A, Mat4 const& trA, ConstShapePtr B, Mat4 const& trB);
+		static inline ContactManifold CollideSphereCapsule(ConstShapePtr A, Mat4 const& trA, ConstShapePtr B, Mat4 const& trB);
+		static inline ContactManifold CollideSphereBox(ConstShapePtr A, Mat4 const& trA, ConstShapePtr B, Mat4 const& trB);
+		static inline ContactManifold CollideSphereConvex(ConstShapePtr A, Mat4 const& trA, ConstShapePtr B, Mat4 const& trB);
+		
+		static inline ContactManifold CollideCapsuleCapsule(ConstShapePtr A, Mat4 const& trA, ConstShapePtr B, Mat4 const& trB);
+		static inline ContactManifold CollideCapsuleConvex(ConstShapePtr A, Mat4 const& trA, ConstShapePtr B, Mat4 const& trB);
+		static inline ContactManifold CollideCapsuleBox(ConstShapePtr A, Mat4 const& trA, ConstShapePtr B, Mat4 const& trB);
+		
+		static inline ContactManifold CollideBoxBox(ConstShapePtr A, Mat4 const& trA, ConstShapePtr B, Mat4 const& trB);
+		static inline ContactManifold CollideBoxConvex(ConstShapePtr A, Mat4 const& trA, ConstShapePtr B, Mat4 const& trB);
+		
+		static inline ContactManifold CollideConvexConvex(ConstShapePtr A, Mat4 const& trA, ConstShapePtr B, Mat4 const& trB);
 
 		// Helper to create the contact manifold for face collisions found during SAT 
 		static ContactManifold GenerateFaceContact(FaceQuery const& fq, Convex const& reference, Mat4 const& refTr, Convex const& incident, Mat4 const& incTr);
@@ -34,20 +38,31 @@ namespace drb::physics {
 	}
 
 
-	ContactManifold Collide(Collider const& A, Mat4 const& trA, Collider const& B, Mat4 const& trB)
+	ContactManifold Collide(ConstShapePtr A, Mat4 const& trA, ConstShapePtr B, Mat4 const& trB)
 	{
 		using CollideFcn = decltype(&util::CollideSphereSphere);
 
-		static constexpr CollideFcn dispatchTable[3][3] = {
-			{&util::CollideSphereSphere,  &util::CollideSphereCapsule,  &util::CollideSphereConvex},
-			{nullptr,                     &util::CollideCapsuleCapsule, &util::CollideCapsuleConvex},
-			{nullptr,                     nullptr,                      &util::CollideConvexConvex}
+		static constexpr CollideFcn dispatchTable[4][4] = {
+			{&util::CollideSphereSphere,  &util::CollideSphereCapsule,  &util::CollideSphereBox,  &util::CollideSphereConvex},
+			{nullptr,                     &util::CollideCapsuleCapsule, &util::CollideCapsuleBox, &util::CollideCapsuleConvex},
+			{nullptr,                     nullptr,                      &util::CollideBoxBox,     &util::CollideBoxConvex},
+			{nullptr,                     nullptr,                      nullptr,                  &util::CollideConvexConvex}
 		};
 
-		Int16 const iA = static_cast<Int16>(A.Type()) - 1;
-		Int16 const iB = static_cast<Int16>(B.Type()) - 1;
-		ASSERT(0 <= iA && iA < 3, "Invalid type");
-		ASSERT(0 <= iB && iB < 3, "Invalid type");
+		auto GetTypeID = [](auto&& s) -> Int16 {
+			return static_cast<Int16>(s->type) - 1;
+		};
+
+		Int16 const iA = std::visit(GetTypeID, A);
+		Int16 const iB = std::visit(GetTypeID, B);
+
+		if (iA < 0 || iA > 4 || iB < 0 || iB > 4) 
+		{ 
+			ASSERT(0 <= iA && iA < 4, "Invalid type");
+			ASSERT(0 <= iB && iB < 4, "Invalid type"); 
+			return ContactManifold{}; 
+		}
+
 
 		if (iA <= iB) 
 		{
@@ -112,6 +127,11 @@ namespace drb::physics {
 		return Collide(A, cA, S, Vec3(0));
 	}
 
+	ContactManifold Collide(Sphere const& A, Vec3 const& dispA, Box const& B, Mat4 const& trB)
+	{
+		COLLIDE_FCN_NOT_IMPLEMENTED
+	}
+
 	ContactManifold Collide(Sphere const& A, Vec3 const& dispA, Convex const& B, Mat4 const& trB_)
 	{
 		COLLIDE_FCN_NOT_IMPLEMENTED
@@ -163,6 +183,7 @@ namespace drb::physics {
 		};
 		// END DEBUG
 	}
+
 
 	ContactManifold Collide(Capsule const& A, Mat4 const& trA, Capsule const& B, Mat4 const& trB)
 	{
@@ -289,6 +310,11 @@ namespace drb::physics {
 		};
 	}
 
+	ContactManifold Collide(Capsule const& A, Mat4 const& trA, Box const& B, Mat4 const& trB)
+	{
+		COLLIDE_FCN_NOT_IMPLEMENTED
+	}
+
 	ContactManifold Collide(Capsule const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB_)
 	{
 		COLLIDE_FCN_NOT_IMPLEMENTED
@@ -340,6 +366,313 @@ namespace drb::physics {
 		};
 		// END DEBUGs
 	}
+
+
+	ContactManifold Collide(Box const& A, Mat4 const& trA_, Box const& B, Mat4 const& trB_)
+	{
+		// These epsilon values are used to prevent issues with parallel axes
+		static constexpr Float32 epsilon = 1.0e-4f;
+		static constexpr Mat3 epsilonMat3 = Mat3{ Vec3(epsilon), Vec3(epsilon), Vec3(epsilon) };
+
+		// These values are used to make Face A preferable to Face B, and both faces
+		// preferable to an Edge Pair when deciding what contact to generate.
+		// Since values are negative, this multiplier makes values closer
+		// to zero, therefore more preferable.
+		static constexpr Float32 linearSlop = 0.005f;
+		static constexpr Float32 relEdgeTolerance = 0.90f;
+		static constexpr Float32 relFaceTolerance = 0.98f;
+		static constexpr Float32 absTolerance = 0.5f * linearSlop;
+
+		// Perform computations in local space of A
+		Mat4 const trA = trA_ * A.Transform();
+		Mat4 const trB = trB_ * B.Transform();
+		Mat3 const rotA = trA;
+		Mat3 const rotB = trB;
+		Vec3 const posA = trA[3];
+		Vec3 const posB = trB[3];
+
+		Mat3 const R = glm::transpose(rotA) * rotB;                                           // expresses B in coordinate frame of A. transpose (inverse) goes the other way from A's coords to B's.
+		Mat3 const absR = Mat3(glm::abs(R[0]), glm::abs(R[1]), glm::abs(R[2])) + epsilonMat3; // epsilon used to handle nearly parallel edges
+		Vec3 const worldT = posB - posA;
+		Vec3 const t = glm::transpose(rotA) * worldT;
+
+		// Helper to go from an axis index to a vector in local space of A
+		auto IndexToAxis = [&](Int32 axisIndex) -> Vec3 {
+			switch (axisIndex) {
+			break; case 0: { return Vec3(1, 0, 0); }
+			break; case 1: { return Vec3(0, 1, 0); }
+			break; case 2: { return Vec3(0, 0, 1); }
+			break; case 3: { return R * Vec3(1, 0, 0); }
+			break; case 4: { return R * Vec3(0, 1, 0); }
+			break; case 5: { return R * Vec3(0, 0, 1); }
+
+			break; case 6: { return glm::normalize(glm::cross(Vec3(1, 0, 0), R * Vec3(1, 0, 0))); }
+			break; case 7: { return glm::normalize(glm::cross(Vec3(1, 0, 0), R * Vec3(0, 1, 0))); }
+			break; case 8: { return glm::normalize(glm::cross(Vec3(1, 0, 0), R * Vec3(0, 0, 1))); }
+			break; case 9: { return glm::normalize(glm::cross(Vec3(0, 1, 0), R * Vec3(1, 0, 0))); }
+			break; case 10: { return glm::normalize(glm::cross(Vec3(0, 1, 0), R * Vec3(0, 1, 0))); }
+			break; case 11: { return glm::normalize(glm::cross(Vec3(0, 1, 0), R * Vec3(0, 0, 1))); }
+			break; case 12: { return glm::normalize(glm::cross(Vec3(0, 0, 1), R * Vec3(1, 0, 0))); }
+			break; case 13: { return glm::normalize(glm::cross(Vec3(0, 0, 1), R * Vec3(0, 1, 0))); }
+			break; case 14: { return glm::normalize(glm::cross(Vec3(0, 0, 1), R * Vec3(0, 0, 1))); }
+			}
+			return Vec3(0);
+		};
+
+		// Helper to obtain clipped incident face in the local space of the reference box
+		auto ClipIncidentToReference = [](Box const& ref, Box const& inc, Int32 refAxis, Box::Face incFace, Mat4 const& incToRef) -> Polygon
+		{
+			Polygon result = inc.FaceAsPolygon(incFace);
+			for (auto&& v : result.verts)
+			{
+				v = incToRef * Vec4(v, 1);
+			}
+
+			Polygon front{}, back{};
+			Int32 const j = (refAxis + 1) % 3;
+			Int32 const k = (j + 1) % 3;
+			Plane clipPlane{ .n = Vec3(0), .d = 0 };
+
+			{
+				clipPlane.n[j] = 1.0f;
+				clipPlane.d = ref.extents[j];
+
+				result.Split(clipPlane, front, back);
+				std::swap(result.verts, back.verts);
+
+				back.verts.clear();
+				clipPlane.n[j] = 0.0f;
+			}
+			{
+				clipPlane.n[k] = 1.0f;
+				clipPlane.d = ref.extents[k];
+
+				result.Split(clipPlane, front, back);
+				std::swap(result.verts, back.verts);
+
+				back.verts.clear();
+				clipPlane.n[k] = 0.0f;
+			}
+			{
+				clipPlane.n[j] = -1.0f;
+				clipPlane.d = ref.extents[j];
+
+				result.Split(clipPlane, front, back);
+				std::swap(result.verts, back.verts);
+
+				back.verts.clear();
+				clipPlane.n[j] = 0.0f;
+			}
+			{
+				clipPlane.n[k] = -1.0f;
+				clipPlane.d = ref.extents[k];
+
+				result.Split(clipPlane, front, back);
+				std::swap(result.verts, back.verts);
+			}
+			return result;
+		};
+
+
+		// We keep track of the axis of greatest separation
+		Int32   bestFaceAxisA = -1;
+		Int32   bestFaceAxisB = -1;
+		Int32   bestEdgeAxisA = -1, bestEdgeAxisB = -1;
+		Float32 bestFaceSepA = std::numeric_limits<Float32>::lowest();
+		Float32 bestFaceSepB = std::numeric_limits<Float32>::lowest();
+		Float32 bestEdgeSep = std::numeric_limits<Float32>::lowest();
+
+		ContactManifold result{};
+
+		// Tests for face normals of A
+		Vec3 const faceSepsA = glm::abs(t) - (A.extents + absR * B.extents);
+		for (Int32 i = 0; i < 3; ++i) {
+			if (faceSepsA[i] > 0.0f) {
+				Vec3 localDir{ 0.0f };
+				localDir[i] = 1.0f;
+
+				result.normal = rotA * localDir;
+				if (glm::dot(result.normal, worldT) < 0.0f) {
+					result.normal *= -1.0f;
+				}
+				return result;
+			}
+			else if (faceSepsA[i] > bestFaceSepA) {
+				bestFaceSepA = faceSepsA[i];
+				bestFaceAxisA = i;
+			}
+		}
+
+		// Tests for face normals of B
+		Vec3 const faceSepsB = glm::abs(glm::transpose(R) * t) - (glm::transpose(absR) * A.extents + B.extents);
+		for (Int32 i = 0; i < 3; ++i) {
+			if (faceSepsB[i] > 0.0f) {
+				Vec3 localDir{ 0.0f };
+				localDir[i] = 1.0f;
+
+				result.normal = rotB * localDir;
+				if (glm::dot(result.normal, worldT) < 0.0f) {
+					result.normal *= -1.0f;
+				}
+				return result;
+			}
+			else if (faceSepsB[i] > bestFaceSepB) {
+				bestFaceSepB = faceSepsB[i];
+				bestFaceAxisB = i;
+			}
+		}
+
+		// Tests for axisA x axisB
+		{
+			Int32 m = 1, n = 2;
+			for (Int32 a = 0; a < 3; ++a)
+			{
+				Vec3 localA{ 0.0f };
+				localA[a] = 1.0f;
+
+				Int32 j = 1, k = 2;
+
+				for (Int32 b = 0; b < 3; ++b)
+				{
+					Float32 const ra = A.extents[m] * absR[b][n] + A.extents[n] * absR[b][m];
+					Float32 const rb = B.extents[j] * absR[k][a] + B.extents[k] * absR[j][a];
+
+					Float32 const sep = glm::abs(t[n] * R[b][m] - t[m] * R[b][n]) - (ra + rb);
+
+					Vec3 localB{ 0.0f };
+					localB[b] = 1.0f;
+
+					if (sep > 0.0f) {
+						result.normal = glm::cross(rotA * localA, rotB * localB);
+						if (glm::dot(result.normal, worldT) < 0.0f) {
+							result.normal *= -1.0f;
+						}
+						return result;
+					}
+					else if (sep > bestEdgeSep) {
+
+						// If edges are not parallel, record the axis
+						if (glm::abs(glm::dot(R * localB, localA)) + epsilon < 1.0f) {
+							bestEdgeSep = sep;
+							bestEdgeAxisA = a;
+							bestEdgeAxisB = b;
+						}
+					}
+					j = k;
+					k = b;
+				}
+				m = n;
+				n = a;
+			}
+		}
+
+
+		Bool const edgeContact = bestEdgeSep > (relEdgeTolerance * glm::max(bestFaceSepA, bestFaceSepB) + absTolerance);
+		Bool const faceBContact = bestFaceSepB > (relFaceTolerance * bestFaceSepA + absTolerance);
+
+		Vec3 normalLocalA{};
+
+		if (edgeContact) {
+			// Compute contact normal in local space of A
+			normalLocalA = IndexToAxis((bestEdgeAxisA * 3 + bestEdgeAxisB) + 6);
+			if (glm::dot(normalLocalA, t) < 0.0f) { // flip s.t. pointing A->B
+				normalLocalA *= -1.0f;
+			}
+
+			// Identify which edges (in world space) are in contact
+			Segment const edgeA = A.SupportingEdgeWithDirection(bestEdgeAxisA, normalLocalA)
+								   .Transformed(trA);
+			Segment const edgeB = B.SupportingEdgeWithDirection(bestEdgeAxisB, glm::transpose(R) * -normalLocalA)
+								   .Transformed(trB);
+
+			// Compute closest points in world space
+			auto const closestPts = ClosestPoints(edgeA, edgeB);
+
+			// Build a contact point at midpoint between the two closest points
+			result.contacts[result.numContacts++] = Contact{
+				.position = 0.5f * (closestPts.ptA + closestPts.ptB),
+				.penetration = -bestEdgeSep
+			};
+		}
+		else {
+			if (faceBContact) {
+				// Compute normal in local space of A
+				normalLocalA = IndexToAxis(bestFaceAxisB + 3);
+				if (glm::dot(normalLocalA, t) < 0.0f) { // flip s.t. pointing A->B
+					normalLocalA *= -1.0f;
+				}
+				Vec3 const normalLocalB = glm::transpose(R) * normalLocalA;
+
+				auto const incidentFace  = A.SupportingFace(normalLocalA);
+				Polygon clipFace = ClipIncidentToReference(B, A, bestFaceAxisB, incidentFace, glm::inverse(trB) * trA);
+				Int32 const numClipVerts = static_cast<Int32>(clipFace.verts.size());
+
+				ASSERT(0 <= numClipVerts && numClipVerts <= 8, "Invalid contact point count");
+
+				// Compute penetration depths and project clip verts onto ref plane
+				Plane const refFacePlane{ .n = -normalLocalB, .d = B.extents[bestFaceAxisB] };
+				Float32 depths[8] = {};
+				for (Int32 i = 0; i < numClipVerts; ++i) {
+					depths[i] = SignedDistance(refFacePlane, clipFace.verts[i]);
+					clipFace.verts[i] -= depths[i] * refFacePlane.n;
+				}
+
+				// Finally, generate the contact points
+				for (Int32 i = 0; i < numClipVerts; ++i) {
+					if (depths[i] < epsilon) {
+						result.contacts[result.numContacts++] = Contact{
+							.position = trB * Vec4(clipFace.verts[i], 1),
+							.penetration = -depths[i]
+						};
+					}
+				}
+			}
+			else { // Face A is reference
+
+				// Compute normal in local space of A, and in world space, pointing A->B
+				normalLocalA = IndexToAxis(bestFaceAxisA);
+				if (glm::dot(normalLocalA, t) < 0.0f) {
+					normalLocalA *= -1.0f;
+				}
+				Vec3 const normalLocalB = glm::transpose(R) * normalLocalA;
+
+				auto const incidentFace = B.SupportingFace(-normalLocalB);
+				Polygon clipFace = ClipIncidentToReference(A, B, bestFaceAxisA, incidentFace, glm::inverse(trA) * trB);
+				Int32 const numClipVerts = static_cast<Int32>(clipFace.verts.size());
+
+				ASSERT(0 <= numClipVerts && numClipVerts <= 8, "Invalid contact point count");
+
+				// Compute penetration depths and project clip verts onto ref plane
+				Plane const refFacePlane{ .n = normalLocalA, .d = A.extents[bestFaceAxisA] };
+				Float32 depths[8] = {};
+				for (Int32 i = 0; i < numClipVerts; ++i) {
+					depths[i] = SignedDistance(refFacePlane, clipFace.verts[i]);
+					clipFace.verts[i] -= depths[i] * refFacePlane.n;
+				}
+
+				// Finally, generate the contact points
+				for (Int32 i = 0; i < numClipVerts; ++i) {
+					if (depths[i] < epsilon) {
+						result.contacts[result.numContacts++] = Contact{
+							.position = trA * Vec4(clipFace.verts[i], 1),
+							.penetration = -depths[i]
+						};
+					}
+				}
+			}
+		}
+
+		result.normal = rotA * normalLocalA;
+
+		ASSERT(glm::epsilonEqual(glm::length2(result.normal), 1.0f, epsilon), "Invalid normal");
+		return result;
+	}
+
+	ContactManifold Collide(Box const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
+	{
+		COLLIDE_FCN_NOT_IMPLEMENTED
+	}
+
 
 	ContactManifold Collide(Convex const& A, Mat4 const& trA_, Convex const& B, Mat4 const& trB_)
 	{
@@ -440,60 +773,81 @@ namespace drb::physics {
 	}
 
 	namespace util {
-		static inline ContactManifold CollideSphereSphere(Collider const& A_, Mat4 const& trA, Collider const& B_, Mat4 const& trB)
+
+		static inline ContactManifold CollideSphereSphere(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
 		{
-			auto const& A = ExtractShape<Sphere>(A_);
-			auto const& B = ExtractShape<Sphere>(B_);
-			return Collide(A, trA[3], B, trB[3]);
+			auto const* A = std::get<Sphere const*>(A_);
+			auto const* B = std::get<Sphere const*>(B_);
+			return Collide(*A, trA[3], *B, trB[3]);
 		}
 
-		static inline ContactManifold CollideSphereCapsule(Collider const& A_, Mat4 const& trA, Collider const& B_, Mat4 const& trB)
+		static inline ContactManifold CollideSphereCapsule(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
 		{
-			auto const& A = ExtractShape<Sphere>(A_);
-			auto const& B = ExtractShape<Capsule>(B_);
-			return Collide(A, trA[3], B, trB);
+			auto const* A = std::get<Sphere const*>(A_);
+			auto const* B = std::get<Capsule const*>(B_);
+			return Collide(*A, trA[3], *B, trB);
 		}
 
-		static inline ContactManifold CollideSphereConvex(Collider const& A_, Mat4 const& trA, Collider const& B_, Mat4 const& trB)
+		static inline ContactManifold CollideSphereBox(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
 		{
-			auto const& A = ExtractShape<Sphere>(A_);
-			auto const& B = ExtractShape<Convex>(B_);
-			return Collide(A, trA[3], B, trB);
+			auto const* A = std::get<Sphere const*>(A_);
+			auto const* B = std::get<Box const*>(B_);
+			return Collide(*A, trA[3], *B, trB);
 		}
 
-		static inline ContactManifold CollideCapsuleCapsule(Collider const& A_, Mat4 const& trA, Collider const& B_, Mat4 const& trB)
+		static inline ContactManifold CollideSphereConvex(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
 		{
-			auto const& A = ExtractShape<Capsule>(A_);
-			auto const& B = ExtractShape<Capsule>(B_);
-			return Collide(A, trA, B, trB);
+			auto const* A = std::get<Sphere const*>(A_);
+			auto const* B = std::get<Convex const*>(B_);
+			return Collide(*A, trA[3], *B, trB);
 		}
 
-		static inline ContactManifold CollideCapsuleConvex(Collider const& A_, Mat4 const& trA, Collider const& B_, Mat4 const& trB)
+		static inline ContactManifold CollideCapsuleCapsule(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
 		{
-			auto const& A = ExtractShape<Capsule>(A_);
-			auto const& B = ExtractShape<Convex>(B_);
-			return Collide(A, trA, B, trB);
+			auto const* A = std::get<Capsule const*>(A_);
+			auto const* B = std::get<Capsule const*>(B_);
+			return Collide(*A, trA, *B, trB);
+		}
+		
+		static inline ContactManifold CollideCapsuleBox(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
+		{
+			auto const* A = std::get<Capsule const*>(A_);
+			auto const* B = std::get<Box const*>(B_);
+			return Collide(*A, trA, *B, trB);
 		}
 
-		static inline ContactManifold CollideConvexConvex(Collider const& A_, Mat4 const& trA, Collider const& B_, Mat4 const& trB)
+		static inline ContactManifold CollideCapsuleConvex(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
 		{
-			auto const& A = ExtractShape<Convex>(A_);
-			auto const& B = ExtractShape<Convex>(B_);
-			return Collide(A, trA, B, trB);
+			auto const* A = std::get<Capsule const*>(A_);
+			auto const* B = std::get<Convex const*>(B_);
+			return Collide(*A, trA, *B, trB);
+		}
+
+		static inline ContactManifold CollideBoxBox(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
+		{
+			auto const* A = std::get<Box const*>(A_);
+			auto const* B = std::get<Box const*>(B_);
+			return Collide(*A, trA, *B, trB);
+		}
+		
+		static inline ContactManifold CollideBoxConvex(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
+		{
+			auto const* A = std::get<Box const*>(A_);
+			auto const* B = std::get<Convex const*>(B_);
+			return Collide(*A, trA, *B, trB);
+		}
+		
+		static inline ContactManifold CollideConvexConvex(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
+		{
+			auto const* A = std::get<Convex const*>(A_);
+			auto const* B = std::get<Convex const*>(B_);
+			return Collide(*A, trA, *B, trB);
 		}
 
 		static inline void Flip(ContactManifold& m)
 		{
 			m.normal *= -1.0f;
 			std::swap(m.featureA, m.featureB);
-		}
-
-
-		template<Shape T>
-		T const& ExtractShape(Collider const& c)
-		{
-			ASSERT(c.Type() == T::type, "Incorrect type");
-			return static_cast<CollisionShape<T> const&>(c).shape;
 		}
 
 
@@ -568,7 +922,7 @@ namespace drb::physics {
 
 			// Possible that clipping has removed ALL points...
 			Int32 const numCandidates = static_cast<Int32>(incFacePoly.verts.size());
-			if (numCandidates == 0) { return m; }
+			if (numCandidates <= 0) { return m; }
 
 			static constexpr Uint32 maxCandidates = 64;
 			ASSERT(numCandidates < maxCandidates, "Too many potential contacts. You probably want to reduce the complexity of your collision geometry.");
@@ -599,9 +953,10 @@ namespace drb::physics {
 
 			// If we already only have at most 4 contacts, just make the 
 			// manifold directly from incFacePoly
-			if (numCandidates <= 4)
+			if (0 <= numCandidates && numCandidates <= 4)
 			{
-				Uint32 curr = (p0Idx + 1) % numCandidates;
+				Uint32 const N = static_cast<Uint32>(numCandidates);
+				Uint32 curr = (p0Idx + 1) % N;
 				while (curr != p0Idx)
 				{
 					m.contacts[m.numContacts++] = Contact{
@@ -610,7 +965,7 @@ namespace drb::physics {
 					};
 
 					curr++;
-					curr %= numCandidates;
+					curr %= N;
 				}
 				return m;
 			}

@@ -99,12 +99,6 @@
     <ClCompile Include="SceneInspector.cpp">
       <Filter>Source Files\Engine</Filter>
     </ClCompile>
-    <ClCompile Include="PhysicsGeometry.cpp">
-      <Filter>Source Files\Physics\Collision</Filter>
-    </ClCompile>
-    <ClCompile Include="PhysicsGeometryQueries.cpp">
-      <Filter>Source Files\Physics\Collision</Filter>
-    </ClCompile>
     <ClCompile Include="SATGJK.cpp">
       <Filter>Source Files\Physics\Collision</Filter>
     </ClCompile>
@@ -120,17 +114,23 @@
     <ClCompile Include="StackAllocator.cpp">
       <Filter>Source Files\Engine</Filter>
     </ClCompile>
+    <ClCompile Include="SparseVector.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="FixedObjectPool.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
     <ClCompile Include="CollisionGeometry.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="GeometryPrimitives.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="GeometryPrimitiveQueries.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Physics\Collision</Filter>
     </ClCompile>
     <ClCompile Include="CollisionQueries.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Physics\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryPrimitiveQueries.cpp">
+      <Filter>Source Files\Physics\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryPrimitives.cpp">
+      <Filter>Source Files\Physics\Collision</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -191,12 +191,6 @@
     <ClInclude Include="SceneInspector.h">
       <Filter>Header Files\Engine</Filter>
     </ClInclude>
-    <ClInclude Include="PhysicsGeometry.h">
-      <Filter>Header Files\Physics\Collision</Filter>
-    </ClInclude>
-    <ClInclude Include="PhysicsGeometryQueries.h">
-      <Filter>Header Files\Physics\Collision</Filter>
-    </ClInclude>
     <ClInclude Include="SATGJK.h">
       <Filter>Header Files\Physics\Collision</Filter>
     </ClInclude>
@@ -212,17 +206,23 @@
     <ClInclude Include="StackAllocator.h">
       <Filter>Header Files\Engine</Filter>
     </ClInclude>
+    <ClInclude Include="FixedObjectPool.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="SparseVector.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
     <ClInclude Include="CollisionGeometry.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GeometryPrimitives.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GeometryPrimitiveQueries.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Physics\Collision</Filter>
     </ClInclude>
     <ClInclude Include="CollisionQueries.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Physics\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryPrimitiveQueries.h">
+      <Filter>Header Files\Physics\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryPrimitives.h">
+      <Filter>Header Files\Physics\Collision</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -250,12 +250,6 @@
     <None Include="WorldStateRecorder.inl">
       <Filter>Header Files\Physics\Debug</Filter>
     </None>
-    <None Include="PhysicsGeometry.inl">
-      <Filter>Header Files\Physics\Collision</Filter>
-    </None>
-    <None Include="PhysicsGeometryQueries.inl">
-      <Filter>Header Files\Physics\Collision</Filter>
-    </None>
     <None Include="Mesh.inl">
       <Filter>Header Files\Engine</Filter>
     </None>
@@ -275,7 +269,7 @@
       <Filter>Header Files\Engine</Filter>
     </None>
     <None Include="CollisionGeometry.inl">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Physics\Collision</Filter>
     </None>
   </ItemGroup>
 </Project>

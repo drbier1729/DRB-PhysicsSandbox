@@ -25,6 +25,16 @@ namespace drb::physics {
 	{
 		c = newC;
 	}
+	
+	inline Vec3 Sphere::Centroid() const
+	{
+		return c;
+	}
+
+	inline void Sphere::SetCentroid(Vec3 const& newC)
+	{
+		c = newC;
+	}
 
 	inline Quat Sphere::Orientation() const
 	{
@@ -52,6 +62,8 @@ namespace drb::physics {
 		Vec3 const worldC = c + Vec3(worldTr[3]);
 		return AABB{ .max = worldC + extents, .min = worldC - extents};
 	}
+
+
 	// -------------------------------------------------------------------------
 	// Capsule
 	// -------------------------------------------------------------------------
@@ -101,6 +113,16 @@ namespace drb::physics {
 		seg.e = newC + h * dir;
 	}
 
+	inline Vec3 Capsule::Centroid() const
+	{
+		return Position();
+	}
+
+	inline void Capsule::SetCentroid(Vec3 const& newC)
+	{
+		SetPosition(newC);
+	}
+
 	inline Quat Capsule::Orientation() const
 	{
 		return Quat(Vec3(0, 1, 0), 0.5f * (seg.e - seg.b));
@@ -133,6 +155,86 @@ namespace drb::physics {
 		return boundsLocal.Transformed(worldTr * Transform());
 	}
 
+
+	// -------------------------------------------------------------------------
+	// Box
+	// -------------------------------------------------------------------------
+	inline Mat3 Box::InertiaTensorAbout(Vec3 const& pt) const
+	{
+		static constexpr Float32 oneTwelfth = 1.0f / 12.0f;
+
+		// Compute local inertia tensor
+		Float32 const w2 = oneTwelfth * extents.x * extents.x;
+		Float32 const h2 = oneTwelfth * extents.y * extents.y;
+		Float32 const d2 = oneTwelfth * extents.z * extents.z;
+		Mat3 I{
+			h2 + d2, 0, 0,
+			0, w2 + d2, 0,
+			0, 0, w2 + h2
+		};
+
+		// Rotate the inertia tensor based on local orientation
+		I = orientation * I * glm::transpose(orientation);
+
+		// Use Parallel Axis Theorem to translate the inertia tensor
+		Vec3 const disp = pt - position;        // displacement vector from center to pt
+		I += glm::length2(disp) * Mat3(1) - glm::outerProduct(disp, disp);
+
+		return I;
+	}
+
+	inline Vec3 Box::Position() const
+	{
+		return position;
+	}
+
+	inline void Box::SetPosition(Vec3 const& newPosition)
+	{
+		position = newPosition;
+	}
+	
+	inline Vec3 Box::Centroid() const
+	{
+		return position;
+	}
+
+	inline void Box::SetCentroid(Vec3 const& newC)
+	{
+		position = newC;
+	}
+
+	inline Quat Box::Orientation() const
+	{
+		return orientation;
+	}
+
+	inline void Box::SetOrientation(Quat const& newOrientation)
+	{
+		orientation = glm::toMat3(newOrientation);
+	}
+
+	inline Mat4 Box::Transform() const
+	{
+		return Mat4{ 
+			Vec4(orientation[0], 0),
+			Vec4(orientation[1], 0),
+			Vec4(orientation[2], 0),
+			Vec4(position, 1)
+		};
+	}
+
+	inline void Box::SetTransform(Mat4 const& newTransform)
+	{
+		orientation = newTransform;
+		position    = newTransform[3];
+	}
+
+	inline AABB Box::Bounds(Mat4 const& worldTransform) const
+	{
+		return AABB{ .max = extents, .min = -extents }.Transformed( worldTransform * Transform() );
+	}
+
+
 	// -------------------------------------------------------------------------
 	// Convex
 	// -------------------------------------------------------------------------
@@ -143,7 +245,7 @@ namespace drb::physics {
 		auto const verts = GetVerts();
 		for (auto&& v : verts)
 		{
-			Vec3 const r = v - pt; // relative position from pt to v
+			Vec3 const r = (glm::rotate(orientation, v) + position) - pt; // relative position from pt to v
 			I[0][0] += r.y * r.y + r.z * r.z;
 			I[0][1] -= r.x * r.y;
 			I[0][2] -= r.x * r.z;
@@ -169,6 +271,16 @@ namespace drb::physics {
 	inline void Convex::SetPosition(Vec3 const& newC)
 	{
 		position = newC;
+	}
+
+	inline Vec3 Convex::Centroid() const
+	{
+		return data ? position + data->localCentroid : position;
+	}
+
+	inline void Convex::SetCentroid(Vec3 const& newC)
+	{
+		position = data ? newC - data->localCentroid : newC;
 	}
 
 	inline Quat Convex::Orientation() const
@@ -201,16 +313,6 @@ namespace drb::physics {
 	inline Vec3 Convex::LocalCentroid() const
 	{
 		return data ? data->localCentroid : Vec3(0);
-	}
-
-	inline Vec3 Convex::Centroid() const
-	{
-		return data ? position + data->localCentroid : position;
-	}
-
-	inline void Convex::SetCentroid(Vec3 const& newC)
-	{
-		position = data ? newC - data->localCentroid : newC;
 	}
 
 	inline Vec3 const& Convex::GetVert(VertID index) const
@@ -340,7 +442,7 @@ namespace drb::physics {
 		return faces;
 	}
 
-	void Convex::ForEachOneRingNeighbor(EdgeID start, std::invocable<HalfEdge> auto fn) const
+	void Convex::ForEachOneRingNeighbor(EdgeID start, std::invocable<HalfEdge> auto&& fn) const
 	{
 		ASSERT(start < NumHalfEdges(), "Index out of range");
 
@@ -357,7 +459,7 @@ namespace drb::physics {
 		} while (neighbor != firstNeighbor);
 	}
 
-	void Convex::ForEachEdgeOfFace(FaceID face, std::invocable<HalfEdge> auto fn) const
+	void Convex::ForEachEdgeOfFace(FaceID face, std::invocable<HalfEdge> auto&& fn) const
 	{
 		ASSERT(face < NumFaces(), "Index out of range");
 
@@ -374,195 +476,140 @@ namespace drb::physics {
 
 		} while (e != start);
 	}
+		
 
-
-	// -------------------------------------------------------------------------
-	// Collider
-	// -------------------------------------------------------------------------
-
-	inline ColliderType Collider::Type() const
+	void CollisionGeometry::ForEachCollider(ConstShapeFn auto&& fn) const
 	{
-		return type;
+		for (auto&& shape : spheres) {
+			fn(shape);
+		}
+		for (auto&& shape : capsules) {
+			fn(shape);
+		}
+		for (auto&& shape : boxes) {
+			fn(shape);
+		}
+		for (auto&& shape : hulls) {
+			fn(shape);
+		}
 	}
 
-	inline Float32 Collider::Mass() const
+	void CollisionGeometry::ForEachCollider(ShapeFn auto&& fn)
 	{
-		return mass;
+		for (auto&& shape : spheres) {
+			fn(shape);
+		}
+		for (auto&& shape : capsules) {
+			fn(shape);
+		}
+		for (auto&& shape : boxes) {
+			fn(shape);
+		}
+		for (auto&& shape : hulls) {
+			fn(shape);
+		}
 	}
 
-	template<class RetType, class Fn, class ... Args>
-	RetType Collider::CallOnShape(Fn func, Args && ... args) const
+	CollisionGeometry& CollisionGeometry::AddCollider(Shape auto const& collider, Float32 mass)
 	{
-		switch (type) 
+		if (locked)
 		{
-		break; case ColliderType::Sphere: { 
-			return func(static_cast<CollisionShape<Sphere> const*>(this)->shape, std::forward<Args>(args)...);
-		}
-		break; case ColliderType::Capsule: {
-			return func(static_cast<CollisionShape<Capsule> const*>(this)->shape, std::forward<Args>(args)...);
-		} 
-		break; case ColliderType::Convex: {
-			return func(static_cast<CollisionShape<Convex> const*>(this)->shape, std::forward<Args>(args)...);
-		}
-		break; default: { ASSERT(false, "Bad type"); }
-		}
-		
-		return RetType{};
-	}
-
-
-#define CONVERT_TO_SHAPE_AND_CALL_CONST_METHOD(retType, method, ...) \
-switch (type) {\
-	break; case ColliderType::Sphere: { \
-		return static_cast<CollisionShape<Sphere> const*>(this)->shape.##method##(__VA_ARGS__); \
-	} \
-	break; case ColliderType::Capsule: { \
-		return static_cast<CollisionShape<Capsule> const*>(this)->shape.##method##(__VA_ARGS__); \
-	} \
-	break; case ColliderType::Convex: { \
-		return static_cast<CollisionShape<Convex> const*>(this)->shape.##method##(__VA_ARGS__); \
-	} \
-	break; default: { ASSERT(false, "Bad type"); } }\
- return retType{};
-
-#define CONVERT_TO_SHAPE_AND_CALL_METHOD(retType, method, ...) \
-switch (type) {\
-	break; case ColliderType::Sphere: { \
-		return static_cast<CollisionShape<Sphere>*>(this)->shape.##method##(__VA_ARGS__); \
-	} \
-	break; case ColliderType::Capsule: { \
-		return static_cast<CollisionShape<Capsule>*>(this)->shape.##method##(__VA_ARGS__); \
-	} \
-	break; case ColliderType::Convex: { \
-		return static_cast<CollisionShape<Convex>*>(this)->shape.##method##(__VA_ARGS__); \
-	} \
-	break; default: { ASSERT(false, "Bad type"); } }\
- return retType{};
-
-	Mat3 Collider::InertiaTensorAbout(Vec3 const& pt) const
-	{
-		CONVERT_TO_SHAPE_AND_CALL_CONST_METHOD(Mat3, InertiaTensorAbout, pt)
-	}
-
-	Vec3 Collider::Position() const
-	{
-		CONVERT_TO_SHAPE_AND_CALL_CONST_METHOD(Vec3, Position)
-	}
-
-	void Collider::SetPosition(Vec3 const& newPos)
-	{
-		CONVERT_TO_SHAPE_AND_CALL_METHOD(void, SetPosition, newPos)
-	}
-
-	Quat Collider::Orientation() const
-	{
-		CONVERT_TO_SHAPE_AND_CALL_CONST_METHOD(Quat, Orientation)
-	}
-
-	void Collider::SetOrientation(Quat const& newOrientation)
-	{
-		CONVERT_TO_SHAPE_AND_CALL_METHOD(void, SetOrientation, newOrientation)
-	}
-	Mat4 Collider::Transform() const
-	{
-		CONVERT_TO_SHAPE_AND_CALL_CONST_METHOD(Mat4, Transform)
-	}
-	void Collider::SetTransform(Mat4 const& newTransform)
-	{
-		CONVERT_TO_SHAPE_AND_CALL_METHOD(void, SetTransform, newTransform)
-	}
-	AABB Collider::Bounds(Mat4 const& worldTr) const
-	{
-		CONVERT_TO_SHAPE_AND_CALL_CONST_METHOD(AABB, Bounds, worldTr)
-	}
-
-#undef CONVERT_TO_SHAPE_AND_CALL_METHOD
-#undef CONVERT_TO_SHAPE_AND_CALL_CONST_METHOD
-
-	CollisionGeometry& CollisionGeometry::AddCollider(Shape auto&& shape, Float32 mass)
-	{
-		ASSERT(not locked, "Cannot add colliders after calling Bake");
-
-		using T = std::remove_cvref_t<decltype(shape)>;
-
-		if constexpr (std::is_same_v<T, Sphere>) {
-			spheres.emplace_back(std::forward<Sphere>(shape), std::forward<Float32>(mass));
-		}
-		else if constexpr (std::is_same_v<T, Capsule>) {
-			capsules.emplace_back(std::forward<Capsule>(shape), std::forward<Float32>(mass));
-		}
-		else if constexpr (std::is_same_v<T, Convex>) {
-			hulls.emplace_back(std::forward<Convex>(shape), std::forward<Float32>(mass));
-		}
-		else {
-			static_assert(std::false_type<T>::value, "Not supported");
+			ASSERT(not locked, "Bake has already been called");
+			return *this;
 		}
 
+		using T = std::remove_cvref_t<decltype(collider)>;
+
+		ColliderSettings s{ .type = T::type, .relativeMass = mass, .centroid = collider.Centroid() };
+
+		if constexpr (std::same_as<T, Sphere>)
+		{
+			s.index = spheres.size();
+			spheres.emplace_back(collider);
+		}
+		else if constexpr (std::same_as<T, Capsule>)
+		{
+			s.index = capsules.size();
+			capsules.emplace_back(collider);
+		}
+		else if constexpr (std::same_as<T, Box>)
+		{
+			s.index = boxes.size();
+			boxes.emplace_back(collider);
+		}
+		else if constexpr (std::same_as<T, Convex>)
+		{
+			s.index = hulls.size();
+			hulls.emplace_back(collider);
+		}
+		else
+		{
+			static_assert(std::false_type<T>::value, "Invalid type");
+		}
+
+		settings.emplace_back(std::move(s));
 		return *this;
 	}
 
-	CollisionGeometry& CollisionGeometry::AddCollider(Shape auto const& shape, Float32 mass)
+	CollisionGeometry& CollisionGeometry::AddCollider(Shape auto&& collider, Float32 mass)
 	{
-		ASSERT(not locked, "Cannot add colliders after calling Bake");
-		
-		using T = std::remove_cvref_t<decltype(shape)>;
-
-		if constexpr (std::is_same_v<T, Sphere>) {
-			spheres.emplace_back(shape, mass);
-		}
-		else if constexpr (std::is_same_v<T, Capsule>) {
-			capsules.emplace_back(shape, mass);
-		}
-		else if constexpr (std::is_same_v<T, Convex>) {
-			hulls.emplace_back(shape, mass);
-		}
-		else {
-			static_assert(std::false_type<T>::value, "Not supported");
+		if (locked)
+		{
+			ASSERT(not locked, "Bake has already been called");
+			return *this;
 		}
 
+		using T = std::remove_cvref_t<decltype(collider)>;
+
+		ColliderSettings s{ .type = T::type, .relativeMass = mass, .centroid = collider.Centroid() };
+
+		if constexpr (std::same_as<T, Sphere>)
+		{
+			s.index = spheres.size();
+			spheres.emplace_back(std::forward<T>(collider));
+		}
+		else if constexpr (std::same_as<T, Capsule>)
+		{
+			s.index = capsules.size();
+			capsules.emplace_back(std::forward<T>(collider));
+		}
+		else if constexpr (std::same_as<T, Box>)
+		{
+			s.index = boxes.size();
+			boxes.emplace_back(std::forward<T>(collider));
+		}
+		else if constexpr (std::same_as<T, Convex>)
+		{
+			s.index = hulls.size();
+			hulls.emplace_back(std::forward<T>(collider));
+		}
+		else
+		{
+			static_assert(std::false_type<T>::value, "Invalid type");
+		}
+
+		settings.emplace_back(std::move(s));
 		return *this;
 	}
 
-	template<class Fn>
-	void CollisionGeometry::ForEachCollider(Fn fn)
+	inline SizeT CollisionGeometry::Size() const
 	{
-		ASSERT(not locked, "Cannot modify colliders after calling Bake");
-		
-		for (auto&& shape : spheres) {
-			fn(shape);
-		}
-		for (auto&& shape : capsules) {
-			fn(shape);
-		}
-		for (auto&& shape : hulls) {
-			fn(shape);
-		}
-	}
-		
-	template<class Fn>
-	void CollisionGeometry::ForEachCollider(Fn fn) const
-	{
-		for (auto&& shape : spheres) {
-			fn(shape);
-		}
-		for (auto&& shape : capsules) {
-			fn(shape);
-		}
-		for (auto&& shape : hulls) {
-			fn(shape);
-		}
+		return spheres.size() + capsules.size() + boxes.size() + hulls.size();
 	}
 
-
-	inline Int32 CollisionGeometry::Size() const
+	inline void  CollisionGeometry::Reserve(SizeT newCapacities)
 	{
-		return static_cast<Int32>(spheres.size() + capsules.size() + hulls.size());
+		spheres.reserve(newCapacities);
+		capsules.reserve(newCapacities);
+		boxes.reserve(newCapacities);
+		hulls.reserve(newCapacities);
 	}
 
-	inline void CollisionGeometry::Reserve(Int32 newCap)
-	{
-		spheres.reserve(newCap);
-		capsules.reserve(newCap);
-		hulls.reserve(newCap);
-	}
+	inline Mat3 const& CollisionGeometry::InverseInertia() const { return invInertia; }
+
+	inline Float32     CollisionGeometry::InverseMass() const    { return invMass; }
+	
+	inline Vec3 const& CollisionGeometry::CenterOfMass() const   { return centerOfMass; }
+	
+	inline AABB const& CollisionGeometry::Bounds() const         { return bounds; }
 }

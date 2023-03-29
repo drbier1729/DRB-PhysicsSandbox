@@ -206,11 +206,11 @@ namespace drb {
 			return *this;
 		}
 
-		inline RigidBody& RigidBody::SetCollisionGeometry(std::shared_ptr<CollisionGeometry const> const& geomPtr)
+		inline RigidBody& RigidBody::SetCollisionGeometry(std::shared_ptr<CollisionGeometry const> geomPtr)
 		{
-			geometry = geomPtr;
-			invInertiaLocal = geometry->invInertia;
-			invMass = geometry->invMass;
+			geometry = std::move(geomPtr);
+			invInertiaLocal = geometry->InverseInertia();
+			invMass = geometry->InverseMass();
 			return *this;
 		}
 		

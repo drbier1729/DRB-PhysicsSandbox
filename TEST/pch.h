@@ -45,6 +45,7 @@
 #include <array>
 #include <set>
 #include <string>
+#include <variant>
 #include <chrono>
 #include <type_traits>
 

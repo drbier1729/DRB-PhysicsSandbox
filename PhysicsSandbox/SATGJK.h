@@ -75,12 +75,12 @@ namespace drb::physics::util {
 		void ComputeBarycentricCoords(Vec3 const& disp);
 	};
 
-
+	
 	// A support function takes an object and a given direction (in the local
 	// space of the object) as args, and returns the most extreme point of
 	// the object in that direction.
 	template<class Shape>
-	using SupportFn = std::function<Vec3(Shape const&, Vec3 const&)>;
+	using SupportFn = std::function<Vec3(Shape const&, Vec3 const&)>; 	// TODO : make this a concept instead of a std::function
 
 
 	// For all GJK tests below, an optional parameter "seed" can be passed in to 

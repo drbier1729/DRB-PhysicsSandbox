@@ -38,26 +38,25 @@ namespace drb {
 		// Build physics World
 		mDummy.SetCollisionGeometry(std::make_shared<CollisionGeometry const>());
 
-		auto geomA = std::make_shared<physics::CollisionGeometry>();
-		geomA->AddCollider(
-				Sphere{ .r = 2.0f },
-				10.0f)
+		auto geomA = std::make_shared<CollisionGeometry>();
+		geomA->AddCollider(Sphere{.r = 2.0f}, 
+					10.0f)
 			.Bake();
-		
-		auto geomB = std::make_shared<physics::CollisionGeometry>();
+
+		auto geomB = std::make_shared<CollisionGeometry>();
 		geomB->AddCollider(
-			    Capsule{ 
-					Segment{ .b = Vec3(0), .e = Vec3(0,2,0) }, 
-					0.5f // radius
-				},
+				Capsule{ Segment{.b = Vec3(0), .e = Vec3(0,2,0) }, 0.5f },
 				20.0f)
 			.Bake();
 
-		auto geomC = std::make_shared<physics::CollisionGeometry>();
+		auto geomC = std::make_shared<CollisionGeometry>();
 		geomC->AddCollider(
 				Convex::MakeTetrahedron(Vec3(0, 2, 0), Vec3(1, 0, 0), Vec3(0, 0, 1), Vec3(-1, 0, 0)),
 				20.0f)
-			 .AddCollider(Convex::MakeBox(Vec3(1.0f, 1.0f, 1.0f)))
+			.AddCollider(
+				Box{ Vec3(2, 1, 2), Vec3(0, -0.5f, 0) },
+				5.0f
+			)
 			.Bake();
 
 
@@ -82,9 +81,15 @@ namespace drb {
 			.SetType(physics::RigidBody::Type::Kinematic)
 			.SetPosition(Vec3(-10, 0, 0))
 			.SetCollisionGeometry(geomB);
-			
+		
 
-		mWorld.AddStaticCollider(Convex::MakeBox(Vec3(1.0f, 2.0f, 3.0f)));
+		CollisionGeometry staticGeoA{};
+		staticGeoA.AddCollider(
+				Box{ Vec3(1,2,3), Vec3(0,-10,0) },
+				10.0f)
+			.Bake();
+
+		mWorld.CreateStaticCollisionGeometry(std::move(staticGeoA));
 
 		// Build BVH
 		mWorld.Init();
@@ -216,7 +221,7 @@ namespace drb {
 					})
 				.DrawStaticCollisionGeometry()
 				.DrawContactManifolds()
-				.DrawBVH()
+				//.DrawBVH()
 				.EndDraw();
 			
 			

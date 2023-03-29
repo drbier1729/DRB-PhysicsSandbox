@@ -18,7 +18,7 @@ namespace drb::physics {
 		locked { false }
 	{
 		bodies.reserve(maxBodies);
-		colliders.Reserve(maxColliders);
+		colliders.reserve(maxColliders);
 		bodyProxies.reserve(maxBodies);
 		bvhTree.Reserve(maxBodies);
 	}
@@ -35,13 +35,13 @@ namespace drb::physics {
 				// Make a new vector to hold the proxies and reserve
 				// the correct number of slots for all geometry
 				auto& rbProxiesVec = bodyProxies.emplace_back();
-				rbProxiesVec.reserve(rb.geometry->Size());
+				rbProxiesVec.reserve( rb.geometry->Size() );
 			
 				// Create proxies and add them to the BVH
 				Mat4 const rbTr = rb.GetTransformMatrix();
-				rb.geometry->ForEachCollider([&]<Shape T>(CollisionShape<T> const& col) {
+				rb.geometry->ForEachCollider([&](Shape auto const& col) {
 
-					AABB const bounds = col.shape.Bounds().Transformed(rbTr);
+					AABB const bounds = col.Bounds().Transformed(rbTr);
 					CollisionProxy& proxy = rbProxiesVec.emplace_back(CollisionProxy{ 
 						.rb = &rb, 
 						.shape = &col 
@@ -53,22 +53,25 @@ namespace drb::physics {
 		}
 
 		// Reserve enough space for all the proxies for static geometry
-		staticProxies.reserve(colliders.Size());
+		staticProxies.reserve(colliders.size());
 
 		// Create the proxies and add them to the BVH
-		colliders.ForEachCollider([this]<Shape T>(CollisionShape<T> const& col) {
-			
-			AABB const bounds = col.shape.Bounds();
-			CollisionProxy& proxy = staticProxies.emplace_back(CollisionProxy{
-				.rb = &worldBody,
-				.shape = &col
-			});
-			proxy.bvHandle = bvhTree.Insert(bounds, &proxy);
-			bvhTree.SetMoved(proxy.bvHandle, false);
-		});
+		for (auto&& c : colliders)
+		{
+			auto& proxyArray = staticProxies.emplace_back();
+			proxyArray.reserve(c.Size());
 
-		// No need to call Bake, but we'll still lock the static colliders
-		colliders.locked = true;
+			c.ForEachCollider([this, &proxyArray](Shape auto const& col) {
+
+				AABB const bounds = col.Bounds();
+				CollisionProxy& proxy = proxyArray.emplace_back(CollisionProxy{
+					.rb = &worldBody,
+					.shape = &col
+				});
+				proxy.bvHandle = bvhTree.Insert(bounds, &proxy);
+				bvhTree.SetMoved(proxy.bvHandle, false);
+			});
+		}
 	}
 
 
@@ -149,8 +152,8 @@ namespace drb::physics {
 				// Update broadphase tree
 				for (auto&& proxy : bodyProxies[i])
 				{
-					AABB const preBounds  = proxy.shape->Bounds(preTr);
-					AABB const postBounds = proxy.shape->Bounds(postTr);
+					AABB const preBounds  = std::visit([&preTr](auto&& s)  { return s->Bounds(preTr); }, proxy.shape);
+					AABB const postBounds = std::visit([&postTr](auto&& s) { return s->Bounds(postTr); }, proxy.shape);
 
 					Vec3 const disp = postBounds.Center() - preBounds.Center();
 
@@ -252,10 +255,9 @@ namespace drb::physics {
 			// Decompose into key (CollisionPair) and value (ContactManifold)
 			auto & [p, m] = *it;
 
-			auto const* shapeA = p.a.shape;
-			auto const* shapeB = p.b.shape;
-			ASSERT(shapeA && shapeB, "Neither shape should be nullptr");
-
+			ConstShapePtr const shapeA = p.a.shape;
+			ConstShapePtr const shapeB = p.b.shape;
+			
 			Mat4 const trA = p.a.rb->GetTransformMatrix();
 			Mat4 const trB = p.b.rb->GetTransformMatrix();
 
@@ -273,22 +275,9 @@ namespace drb::physics {
 				}
 			}
 
-			// 2) check the tight AABBs for overlap -- if none,
-			// update the manifold (but don't overwrite the old
-			// manifold points bc we may reuse them soon)
-			{
-				AABB const boundsA = shapeA->Bounds();
-				AABB const boundsB = shapeB->Bounds();
-				if (not boundsA.Intersects(boundsB))
-				{
-					m.numContacts = 0;
-					++it;
-					continue;
-				}
-			}
 
 			// TODO:
-			// 3) check cached axis of least penetration or cached
+			// 2) check cached axis of least penetration or cached
 			// GJK simplex -- if separation, update the manifold 
 			// (but don't overwrite the old manifold points bc we 
 			// may reuse them soon)
@@ -299,7 +288,7 @@ namespace drb::physics {
 			//
 
 			// Do the full narrow phase collision detection and update the manifold
-			ContactManifold const newManifold = Collide(*shapeA, trA, *shapeB, trB);
+			ContactManifold const newManifold = Collide(shapeA, trA, shapeB, trB);
 			m = newManifold; // m.Update(newManifold);
 			
 			++it;

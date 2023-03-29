@@ -2,7 +2,6 @@
 #include "PhysicsDebugDrawing.h"
 
 #include "CollisionGeometry.h"
-#include "PhysicsGeometryQueries.h"
 #include "RigidBody.h"
 #include "PhysicsWorld.h"
 #include "Mesh.h"
@@ -16,7 +15,7 @@ namespace drb {
 		static inline Mat4 CubeTransform(Vec3 const& halfwidths, Mat4 const& tr);
 		static void DrawCapsule(Capsule const& cap, ShaderProgram const& prg, Mat4 const& tr, ColorInfo const& colorInfo);
 		static void DrawAABB(AABB const& b, ShaderProgram const& prg, ColorInfo const& colorInfo);
-
+		
 		// ---------------------------------------------------------------------
 		// DEBUG RENDERER METHODS
 		// ---------------------------------------------------------------------
@@ -37,12 +36,14 @@ namespace drb {
 			for (auto&& rb : world->bodies) 
 			{
 				for (auto&& cvx : rb.geometry->hulls) {
-					meshes.emplace(&cvx.shape, std::move(MakeRenderMesh(cvx.shape)));
+					meshes.emplace(&cvx, std::move(MakeRenderMesh(cvx)));
 				}
 			}
-			for (auto&& cvx : world->colliders.hulls)
-			{
-				meshes.emplace(&cvx.shape, std::move(MakeRenderMesh(cvx.shape)));
+			for (auto&& col : world->colliders) {
+				for (auto&& cvx : col.hulls)
+				{
+					meshes.emplace(&cvx, std::move(MakeRenderMesh(cvx)));
+				}
 			}
 		}
 
@@ -127,34 +128,49 @@ namespace drb {
 
 			for (auto&& s : rb.geometry->spheres) {
 				modelTr = rbTr;
-				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
-				modelTr = SphereTransform(s.shape, modelTr);
-				DrawMesh(use.mesh, shader, modelTr, ci);
+				{
+					drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
+					modelTr = SphereTransform(s, modelTr);
+					DrawMesh(use.mesh, shader, modelTr, ci);
+				}
 
 				EnableWireframeMode();
-				b = s.shape.Bounds(rbTr);
+				b = s.Bounds(rbTr);
 				DrawAABB(b, shader, ci);
 				EnableWireframeMode(false);
 			}
 
 			for (auto&& c : rb.geometry->capsules) {
 				modelTr = rbTr;
-				DrawCapsule(c.shape, shader, modelTr, ci);
+				DrawCapsule(c, shader, modelTr, ci);
 
 				EnableWireframeMode();
-				b = c.shape.Bounds(rbTr);
+				b = c.Bounds(rbTr);
+				DrawAABB(b, shader, ci);
+				EnableWireframeMode(false);
+			}
+			
+			for (auto&& s : rb.geometry->boxes) {
+				modelTr = rbTr * s.Transform() * glm::scale(Mat4(1), s.extents);
+				{
+					drb::Mesh::ScopedUse use{ drb::Mesh::Cube() };
+					DrawMesh(use.mesh, shader, modelTr, ci);
+				}
+
+				EnableWireframeMode();
+				b = s.Bounds(rbTr);
 				DrawAABB(b, shader, ci);
 				EnableWireframeMode(false);
 			}
 
 			for (auto&& h : rb.geometry->hulls) {
-				modelTr = rbTr * h.shape.Transform();
-				drb::Mesh::ScopedUse use{ meshes.at(&h.shape) };
+				modelTr = rbTr * h.Transform();
+				drb::Mesh::ScopedUse use{ meshes.at(&h) };
 				DrawMesh(use.mesh, shader, modelTr, ci);
 
 
 				EnableWireframeMode();
-				b = h.shape.Bounds(rbTr);
+				b = h.Bounds(rbTr);
 				DrawAABB(b, shader, ci);
 				EnableWireframeMode(false);
 			}
@@ -203,18 +219,24 @@ namespace drb {
 			for (auto&& s : rb.geometry->spheres) {
 				modelTr = rbTr * scale;
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
-				modelTr = SphereTransform(s.shape, modelTr);
+				modelTr = SphereTransform(s, modelTr);
 				DrawMesh(use.mesh, shader, modelTr, ci);
 			}
 
 			for (auto&& c : rb.geometry->capsules) {
 				modelTr = rbTr * scale;
-				DrawCapsule(c.shape, shader, modelTr, ci);
+				DrawCapsule(c, shader, modelTr, ci);
+			}
+
+			for (auto&& s : rb.geometry->boxes) {
+				modelTr = rbTr * s.Transform() * glm::scale(Mat4(1), s.extents) * scale;
+				drb::Mesh::ScopedUse use{ drb::Mesh::Cube() };
+				DrawMesh(use.mesh, shader, modelTr, ci);
 			}
 
 			for (auto&& h : rb.geometry->hulls) {
-				modelTr = rbTr * h.shape.Transform() * scale;
-				drb::Mesh::ScopedUse use{ meshes.at(&h.shape) };
+				modelTr = rbTr * h.Transform() * scale;
+				drb::Mesh::ScopedUse use{ meshes.at(&h) };
 				DrawMesh(use.mesh, shader, modelTr, ci);
 			}
 
@@ -328,19 +350,30 @@ namespace drb {
 					.opacity = 0.3f
 			};
 
-			for (auto&& s : world->colliders.spheres) {
-				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
-				Mat4 const modelTr = SphereTransform(s.shape, Mat4(1));
-				DrawMesh(use.mesh, shader, modelTr, staticColor);
-			}
-			
-			for (auto&& c : world->colliders.capsules) {
-				DrawCapsule(c.shape, shader, c.shape.Transform(), staticColor);
-			}
-			
-			for (auto&& h : world->colliders.hulls) {
-				drb::Mesh::ScopedUse use{ meshes.at(&h.shape) };
-				DrawMesh(use.mesh, shader, h.shape.Transform(), staticColor);
+			Mat4 modelTr{};
+
+			for (auto&& col : world->colliders) {
+
+				for (auto&& s : col.spheres) {
+					modelTr = SphereTransform(s, Mat4(1));
+					drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
+					DrawMesh(use.mesh, shader, modelTr, staticColor);
+				}
+
+				for (auto&& s : col.boxes) {
+					modelTr = s.Transform() * glm::scale(Mat4(1), s.extents);
+					drb::Mesh::ScopedUse use{ drb::Mesh::Cube() };
+					DrawMesh(use.mesh, shader, modelTr, staticColor);
+				}
+
+				for (auto&& c : col.capsules) {
+					DrawCapsule(c, shader, c.Transform(), staticColor);
+				}
+
+				for (auto&& h : col.hulls) {
+					drb::Mesh::ScopedUse use{ meshes.at(&h) };
+					DrawMesh(use.mesh, shader, h.Transform(), staticColor);
+				}
 			}
 
 			return *this;
@@ -461,7 +494,7 @@ namespace drb {
 
 			// Construct vertex buffer interleaved with vertex normals and uvs
 			std::vector<float> verts;
-			verts.reserve(cvx.NumVerts() * 8u);
+			verts.reserve(static_cast<size_t>(cvx.NumVerts()) * 8u);
 
 			std::vector<glm::uvec3> indices;
 			indices.reserve(cvx.NumFaces());

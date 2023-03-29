@@ -38,7 +38,7 @@ namespace drb {
 			CircularBuffer<RigidBodyState> rbStates{};
 			Uint32 top = 0, current = 0;
 
-			World* world;
+			World* world = nullptr;
 
 		public:
 			// world must be fully built already with all rigidbodies

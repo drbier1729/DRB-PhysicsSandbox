@@ -20,8 +20,7 @@ Build and Run
         scenes)
     - build and run from Debugger
 - required dependencies...
-     - GLEW (glew32.dll)
-     - all other dependencies (assimp, imgui, etc) are included in "deps" directory which includes their licences.
+     - all dependencies (assimp, imgui, etc) are included in "deps" directory which includes their licences.
         I know this isn't very profesh, but since this is a hobby/academic project I don't feel too bad about it. 
         Feel free to set up those dependencies on your own if you'd like.
 

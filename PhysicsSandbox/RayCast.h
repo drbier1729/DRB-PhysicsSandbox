@@ -10,9 +10,9 @@ namespace drb::physics {
 
 	struct CastResult
 	{
-		Vec3    point = Vec3(std::numeric_limits<Float32>::max());
-		Float32 distance = std::numeric_limits<Float32>::max();
-		Bool	hit = false;
+		Vec3 point = Vec3(std::numeric_limits<Real>::max());
+		Real distance = std::numeric_limits<Real>::max();
+		Bool hit = false;
 
 		operator Bool() const { return hit; }
 	};

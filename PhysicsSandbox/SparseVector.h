@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <vector>
 
+#include "DRBAssert.h"
+
 #define DRB_SV_VERSION 1
 
 #if DRB_SV_VERSION == 0

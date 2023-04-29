@@ -1,4 +1,6 @@
 
+#include "DRBAssert.h"
+
 namespace drb::physics::util {
 
 	inline Simplex::Type Simplex::GetType() const
@@ -13,7 +15,7 @@ namespace drb::physics::util {
 		vertsB[size] = vB;
 		edgeIdxsA[size] = eIdxA;
 		edgeIdxsB[size] = eIdxB;
-		lambdas[size] = 0.0f;
+		lambdas[size] = 0.0_r;
 		size++;
 	}
 

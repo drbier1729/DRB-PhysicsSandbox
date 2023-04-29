@@ -54,9 +54,9 @@ namespace drb::physics
 		}
 	}
 
-	void BVHierarchy::Query(Float32 r, Vec3 const& c, BVHIntersectionQuery auto queryCallback) const
+	void BVHierarchy::Query(Real r, Vec3 const& c, BVHIntersectionQuery auto queryCallback) const
 	{
-		Float32 const r2 = r * r;
+		Real const r2 = r * r;
 
 		std::vector<Int32> stack{};
 		stack.reserve(256);

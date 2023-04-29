@@ -114,7 +114,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>false</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;NDRB_PHYSICS_XPBD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -138,7 +138,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>false</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions); NDRB_PHYSICS_XPBD</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -166,8 +166,11 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">pch.h</PrecompiledHeaderFile>
     </ClCompile>
+    <ClCompile Include="DRBAssert.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="CollisionQueries.cpp" />
+    <ClCompile Include="Constraints.cpp" />
+    <ClCompile Include="ContactSolver.cpp" />
     <ClCompile Include="DynamicBVH.cpp" />
     <ClCompile Include="FixedObjectPool.cpp" />
     <ClCompile Include="FrameListener.cpp">
@@ -215,6 +218,7 @@
     <ClCompile Include="SceneInspector.cpp" />
     <ClCompile Include="SparseVector.cpp" />
     <ClCompile Include="StackAllocator.cpp" />
+    <ClCompile Include="Transform.cpp" />
     <ClCompile Include="WorldStateRecorder.cpp" />
     <ClCompile Include="Shader.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
@@ -232,9 +236,12 @@
   <ItemGroup>
     <ClInclude Include="AABB.h" />
     <ClInclude Include="Application.h" />
+    <ClInclude Include="DRBAssert.h" />
     <ClInclude Include="BreakableScope.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CollisionQueries.h" />
+    <ClInclude Include="Constraints.h" />
+    <ClInclude Include="ContactSolver.h" />
     <ClInclude Include="DynamicBVH.h" />
     <ClInclude Include="FixedObjectPool.h" />
     <ClInclude Include="FrameListener.h" />
@@ -256,6 +263,7 @@
     <ClInclude Include="SceneInspector.h" />
     <ClInclude Include="SparseVector.h" />
     <ClInclude Include="StackAllocator.h" />
+    <ClInclude Include="Transform.h" />
     <ClInclude Include="WorldStateRecorder.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="TypeDefs.h" />
@@ -265,6 +273,7 @@
     <None Include="AABB.inl" />
     <None Include="Camera.inl" />
     <None Include="CollisionGeometry.inl" />
+    <None Include="Constraints.inl" />
     <None Include="default.frag" />
     <None Include="default.vert" />
     <None Include="DynamicBVH.inl" />

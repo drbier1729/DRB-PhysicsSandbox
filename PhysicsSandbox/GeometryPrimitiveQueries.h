@@ -8,13 +8,13 @@ namespace drb::physics {
 
 	// Returns true if the Segment and Plane intersect. Sets "t" to a parameterized
 	// value in range [0..1] and q to the point of intersection.
-	Bool Intersect(Segment const& seg, Plane const& plane, float& t, Vec3& q);
+	Bool Intersect(Segment const& seg, Plane const& plane, Real& t, Vec3& q);
 
 	// Returns which side of the Plane pt is on (Front, On, or Back)
 	Side Classify(Plane const& plane, Vec3 const& pt);
 
 	// Returns the signed distance from plane to pt
-	Float32 SignedDistance(Plane const& plane, Vec3 const& pt);
+	Real SignedDistance(Plane const& plane, Vec3 const& pt);
 
 	// Returns closest point (in world space) on segment ls to point pt
 	// Parameter "t" is stored in the 4th(w) coord of result, which allows
@@ -38,7 +38,7 @@ namespace drb::physics {
 	// Same as above but does not check if A or B degenerate to a point, and requires
 	// precomputation of their direction vectors (dA and dB) and their square magnitudes 
 	// (mag2A and mag2B).
-	ClosestPointsQuery ClosestPointsNonDegenerate(Segment const& A, Segment const& B, Vec3 const& dA, Vec3 const& dB, Float32 mag2A, Float32 mag2B);
+	ClosestPointsQuery ClosestPointsNonDegenerate(Segment const& A, Segment const& B, Vec3 const& dA, Vec3 const& dB, Real mag2A, Real mag2B);
 }
 
 #endif

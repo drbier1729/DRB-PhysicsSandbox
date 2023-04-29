@@ -4,6 +4,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.4.33103.184
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PhysicsSandbox", "PhysicsSandbox\PhysicsSandbox.vcxproj", "{F427C331-9687-4FE7-8B2C-DE4F703A48BC}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A2874BB4-2F26-4C1B-91A6-507EAB92DD5C} = {A2874BB4-2F26-4C1B-91A6-507EAB92DD5C}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TEST", "TEST\TEST.vcxproj", "{282B04CC-5A8B-4296-A9EE-3721940746CE}"
 EndProject

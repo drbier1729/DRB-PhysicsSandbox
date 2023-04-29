@@ -3,28 +3,31 @@
 
 #include "Math.h"
 #include "AABB.h"
+#include "DRBAssert.h"
 
 namespace drb::physics {
 
 	// See Ericson Ch. 5
 	CastResult Ray::Cast(AABB const& aabb) const
 	{
-		Float32 tmin = 0.0f;
-		Float32 tmax = std::numeric_limits<Float32>::max();
+		Real tmin = 0.0_r;
+		Real tmax = std::numeric_limits<Real>::max();
+
+		Vec3 const min = aabb.Min(), max = aabb.Max();
 
 		// For all three slabs
 		for (Uint32 i = 0u; i < 3u; ++i)
 		{
-			if (EpsilonEqual(d[i], 0.0f))
+			if (EpsilonEqual(d[i], 0.0_r))
 			{
 				// Ray is parallel to slab. No hit if origin not within slab
-				if (p[i] < aabb.min[i] || p[i] > aabb.max[i]) { return CastResult{}; }
+				if (p[i] < min[i] || p[i] > max[i]) { return CastResult{}; }
 			}
 			else {
 				// Compute intersection t value of ray with near and far plane of slab
-				Float32 const ood = 1.0f / d[i];
-				Float32 t1 = (aabb.min[i] - p[i]) * ood;
-				Float32 t2 = (aabb.max[i] - p[i]) * ood;
+				Real const ood = 1.0_r / d[i];
+				Real t1 = (min[i] - p[i]) * ood;
+				Real t2 = (max[i] - p[i]) * ood;
 
 				// Make t1 be intersection with near plane, t2 with far plane
 				if (t1 > t2) { std::swap(t1, t2); }

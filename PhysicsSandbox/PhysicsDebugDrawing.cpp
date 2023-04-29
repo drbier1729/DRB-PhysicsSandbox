@@ -6,15 +6,17 @@
 #include "PhysicsWorld.h"
 #include "Mesh.h"
 #include "Window.h"
+#include "DRBAssert.h"
 
 namespace drb {
 	namespace physics {
 
 		// Helper fwd decls
-		static inline Mat4 SphereTransform(Sphere const& sph, Mat4 const& tr);
-		static inline Mat4 CubeTransform(Vec3 const& halfwidths, Mat4 const& tr);
-		static void DrawCapsule(Capsule const& cap, ShaderProgram const& prg, Mat4 const& tr, ColorInfo const& colorInfo);
+		static inline glm::mat4 SphereTransform(Sphere const& sph, glm::mat4 const& tr);
+		static inline glm::mat4 CubeTransform(Vec3 const& halfwidths, glm::mat4 const& tr);
+		static void DrawCapsule(Capsule const& cap, ShaderProgram const& prg, glm::mat4 const& tr, ColorInfo const& colorInfo);
 		static void DrawAABB(AABB const& b, ShaderProgram const& prg, ColorInfo const& colorInfo);
+		static void DrawOBB(AABB const& localAABB, glm::mat4 const& rot, ShaderProgram const& prg, ColorInfo const& colorInfo);
 		
 		// ---------------------------------------------------------------------
 		// DEBUG RENDERER METHODS
@@ -28,8 +30,8 @@ namespace drb {
 					Shader("default.frag", GL_FRAGMENT_SHADER)
 				});
 
-			lightColor = { 3.0f, 3.0f, 3.0f };
-			lightDir = { Normalize(Vec3(0.5f, 1.0f, 2.0f)) };
+			lightColor = { 3.0, 3.0, 3.0 };
+			lightDir = { Normalize(Vec3(0.5, 1.0, 2.0)) };
 
 			// Build render meshes from world
 			world = &world_;
@@ -47,7 +49,7 @@ namespace drb {
 			}
 		}
 
-		void DebugRenderer::Draw(Camera const& cam, Float32 frameInterpolation) const
+		void DebugRenderer::Draw(Camera const& cam, float frameInterpolation) const
 		{
 			
 			BeginDraw(cam.ProjMatrix(), cam.ViewMatrix(), cam.GetPosition());
@@ -59,7 +61,7 @@ namespace drb {
 			EndDraw();
 		}
 
-		DebugRenderer const& DebugRenderer::BeginDraw(Mat4 const& proj, Mat4 const& view, Vec3 const& eyePos) const
+		DebugRenderer const& DebugRenderer::BeginDraw(glm::mat4 const& proj, glm::mat4 const& view, glm::vec3 const& eyePos) const
 		{
 			shader.Use();
 
@@ -81,13 +83,13 @@ namespace drb {
 			return *this;
 		}
 
-		DebugRenderer const& DebugRenderer::DrawRigidBodies(Float32 frameInterpolation) const
+		DebugRenderer const& DebugRenderer::DrawRigidBodies(float frameInterpolation) const
 		{
 			static constexpr ColorInfo dynamicColor{
 					.specular = { 0.02f, 0.02f, 0.02f },
 					.diffuse = { 0.5f, 0.0f, 0.0f },
 					.gloss = 0.82f,
-					.opacity = 0.3f
+					.opacity = 1.0f
 			};
 
 			static constexpr ColorInfo kinematicColor{
@@ -115,64 +117,58 @@ namespace drb {
 			return *this;
 		}
 		
-		DebugRenderer const& DebugRenderer::DrawOneRigidBody(RigidBody const& rb, Float32 frameInterpolation, ColorInfo const& ci) const
+		DebugRenderer const& DebugRenderer::DrawOneRigidBody(RigidBody const& rb, float frameInterpolation, ColorInfo const& ci) const
 		{
 			if (not rb.geometry) { return *this; }
 
-			Vec3 const interpolatedPos = frameInterpolation * rb.position + (1.0f - frameInterpolation) * rb.prevPosition;
-			Quat const interpolatedRot = frameInterpolation * rb.orientation + (1.0f - frameInterpolation) * rb.prevOrientation;
-			Mat4 const rbTr = glm::translate(Mat4(1), interpolatedPos) * glm::toMat4(interpolatedRot);
+			glm::vec3 const interpolatedPos = frameInterpolation * glm::vec3(rb.position) + (1.0f - frameInterpolation) * glm::vec3(rb.prevPosition);
+			glm::quat const interpolatedRot = glm::slerp(glm::quat(rb.prevOrientation), glm::quat(rb.orientation), frameInterpolation);
+			glm::mat4 const translation = glm::translate(glm::mat4(1), interpolatedPos);
+			glm::mat4 const rotation = glm::toMat4(interpolatedRot);
+			glm::mat4 const rbTr = translation * rotation;
 
-			Mat4 modelTr{};
+			glm::mat4 modelTr{};
 			AABB b{};
 
-			for (auto&& s : rb.geometry->spheres) {
-				modelTr = rbTr;
-				{
-					drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
-					modelTr = SphereTransform(s, modelTr);
-					DrawMesh(use.mesh, shader, modelTr, ci);
+			{
+				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
+				for (auto&& s : rb.geometry->spheres) {
+					modelTr = rbTr;
+					{
+						modelTr = SphereTransform(s, modelTr);
+						DrawMesh(use.mesh, shader, modelTr, ci);
+					}
 				}
-
-				EnableWireframeMode();
-				b = s.Bounds(rbTr);
-				DrawAABB(b, shader, ci);
-				EnableWireframeMode(false);
 			}
 
 			for (auto&& c : rb.geometry->capsules) {
 				modelTr = rbTr;
 				DrawCapsule(c, shader, modelTr, ci);
 
-				EnableWireframeMode();
-				b = c.Bounds(rbTr);
-				DrawAABB(b, shader, ci);
-				EnableWireframeMode(false);
+				//EnableWireframeMode();
+				//b = c.Bounds(translation);
+				//DrawOBB(b, interpolatedRot, shader, ci);
+				//EnableWireframeMode(false);
 			}
 			
 			for (auto&& s : rb.geometry->boxes) {
-				modelTr = rbTr * s.Transform() * glm::scale(Mat4(1), s.extents);
+				modelTr = rbTr * glm::mat4(s.Transform()) * glm::scale(glm::mat4(1), glm::vec3(s.extents));
 				{
 					drb::Mesh::ScopedUse use{ drb::Mesh::Cube() };
 					DrawMesh(use.mesh, shader, modelTr, ci);
 				}
-
-				EnableWireframeMode();
-				b = s.Bounds(rbTr);
-				DrawAABB(b, shader, ci);
-				EnableWireframeMode(false);
 			}
 
 			for (auto&& h : rb.geometry->hulls) {
-				modelTr = rbTr * h.Transform();
+				modelTr = rbTr * glm::mat4(h.Transform());
 				drb::Mesh::ScopedUse use{ meshes.at(&h) };
 				DrawMesh(use.mesh, shader, modelTr, ci);
 
 
-				EnableWireframeMode();
-				b = h.Bounds(rbTr);
-				DrawAABB(b, shader, ci);
-				EnableWireframeMode(false);
+				//EnableWireframeMode();
+				//b = h.Bounds(rbTr);
+				//DrawAABB(b, shader, ci);
+				//EnableWireframeMode(false);
 			}
 
 			return *this;
@@ -205,16 +201,16 @@ namespace drb {
 		}
 
 
-		DebugRenderer const& DebugRenderer::HighlightOneRigidBody(RigidBody const& rb, Float32 frameInterpolation, ColorInfo const& ci) const
+		DebugRenderer const& DebugRenderer::HighlightOneRigidBody(RigidBody const& rb, float frameInterpolation, ColorInfo const& ci) const
 		{
 			if (not rb.geometry) { return *this; }
 
-			Vec3 const interpolatedPos = frameInterpolation * rb.position + (1.0f - frameInterpolation) * rb.prevPosition;
-			Quat const interpolatedRot = frameInterpolation * rb.orientation + (1.0f - frameInterpolation) * rb.prevOrientation;
-			Mat4 const rbTr = glm::translate(Mat4(1), interpolatedPos) * glm::toMat4(interpolatedRot);
+			glm::vec3 const interpolatedPos = frameInterpolation * glm::vec3(rb.position) + (1.0f - frameInterpolation) * glm::vec3(rb.prevPosition);
+			glm::quat const interpolatedRot = glm::slerp(glm::quat(rb.prevOrientation), glm::quat(rb.orientation), frameInterpolation);
+			glm::mat4 const rbTr = glm::translate(glm::mat4(1), interpolatedPos) * glm::toMat4(interpolatedRot);
 
-			Mat4 modelTr{};
-			Mat4 const scale = glm::scale(Mat4(1), Vec3(1.03f));
+			glm::mat4 modelTr{};
+			glm::mat4 const scale = glm::scale(glm::mat4(1), glm::vec3(1.03f));
 			
 			for (auto&& s : rb.geometry->spheres) {
 				modelTr = rbTr * scale;
@@ -229,13 +225,13 @@ namespace drb {
 			}
 
 			for (auto&& s : rb.geometry->boxes) {
-				modelTr = rbTr * s.Transform() * glm::scale(Mat4(1), s.extents) * scale;
+				modelTr = rbTr * glm::mat4(s.Transform()) * glm::scale(glm::mat4(1), glm::vec3(s.extents)) * scale;
 				drb::Mesh::ScopedUse use{ drb::Mesh::Cube() };
 				DrawMesh(use.mesh, shader, modelTr, ci);
 			}
 
 			for (auto&& h : rb.geometry->hulls) {
-				modelTr = rbTr * h.Transform() * scale;
+				modelTr = rbTr * glm::mat4(h.Transform()) * scale;
 				drb::Mesh::ScopedUse use{ meshes.at(&h) };
 				DrawMesh(use.mesh, shader, modelTr, ci);
 			}
@@ -308,34 +304,45 @@ namespace drb {
 			if (m.numContacts == 0) { return *this; }
 
 			// Draw contact points, and compute center  while we're at it
-			Vec3 manifoldCenter = Vec3(0);
+			Vec3 manifoldCenterA = Vec3(0);
+			Vec3 manifoldCenterB = Vec3(0);
+
+			Vec3 const xA = m.rbA->GetPosition();
+			Vec3 const xB = m.rbB->GetPosition();
+			Quat const qA = m.rbA->GetOrientation();
+			Quat const qB = m.rbB->GetOrientation();
+
 			{
 				drb::Mesh::ScopedUse use{ drb::Mesh::Cube() };
 
 				for (Uint8 i = 0u; i < m.numContacts; ++i)
 				{
-					manifoldCenter += m.contacts[i].position;
+					auto const [wA, wB] = m.contacts[i].WorldPoints(m.rbA, m.rbB);
+					manifoldCenterA += wA;
 
-					Mat4 const modelTr = glm::translate(Mat4(1), m.contacts[i].position) *
-										 glm::scale(Mat4(1), Vec3(0.05f));
-					DrawMesh(use.mesh, shader, modelTr, contactColor);
+					Mat4 const modelTrA = glm::translate(Mat4(1), wA) *
+										 glm::scale(Mat4(1), Vec3(0.05_r));
+					Mat4 const modelTrB = glm::translate(Mat4(1), wB) *
+										 glm::scale(Mat4(1), Vec3(0.05_r));
+					DrawMesh(use.mesh, shader, modelTrA, contactColor);
+					DrawMesh(use.mesh, shader, modelTrB, contactColor);
 				}
-				manifoldCenter *= 1.0f / m.numContacts;
+				manifoldCenterA *= 1.0 / m.numContacts;
 			}
 
 			// Draw normal of separating plane
 			{
-				DrawVector(m.normal, manifoldCenter, shader, contactColor);
+				DrawVector(glm::vec3(m.normal), glm::vec3(manifoldCenterA), shader, contactColor);
 			}
 
 			// Draw separating plane
 			{
 				drb::Mesh::ScopedUse use{ drb::Mesh::Quad() };
-				Mat4 const modelTr = glm::translate(Mat4(1), manifoldCenter)
+				Mat4 const modelTr = glm::translate(Mat4(1), manifoldCenterA)
 					               * UnitVectorToBasis4(m.normal)
 								   * glm::scale(Mat4(1), Vec3(8));
 								   
-				DrawMesh(use.mesh, shader, modelTr, planeColor);
+				DrawMesh(use.mesh, shader, glm::mat4(modelTr), planeColor);
 			}
 
 			return *this;
@@ -367,12 +374,12 @@ namespace drb {
 				}
 
 				for (auto&& c : col.capsules) {
-					DrawCapsule(c, shader, c.Transform(), staticColor);
+					DrawCapsule(c, shader, Mat4(1), staticColor);
 				}
 
 				for (auto&& h : col.hulls) {
 					drb::Mesh::ScopedUse use{ meshes.at(&h) };
-					DrawMesh(use.mesh, shader, h.Transform(), staticColor);
+					DrawMesh(use.mesh, shader, Mat4(1), staticColor);
 				}
 			}
 
@@ -401,10 +408,11 @@ namespace drb {
 			}
 		}
 
-		void DrawMesh(drb::Mesh const& m, ShaderProgram const& shader, Mat4 const& tr, ColorInfo const& colorInfo)
+		void DrawMesh(drb::Mesh const& m, ShaderProgram const& shader, glm::mat4 const& tr_, ColorInfo const& colorInfo)
 		{
 			// assumes mesh is already in use
-			Mat4 const modelInvTranspose = glm::transpose(glm::inverse(tr));
+			glm::mat4 const tr = tr_;
+			glm::mat4 const modelInvTranspose = glm::transpose(glm::inverse(tr));
 
 			shader.SetUniformMatrix(glm::value_ptr(tr), 4, "uModel");
 			shader.SetUniformMatrix(glm::value_ptr(modelInvTranspose), 4, "uModelInvTr");
@@ -417,23 +425,23 @@ namespace drb {
 			m.Draw();
 		}
 
-		void DrawVector(Vec3 const& vec, Vec3 const& startPt, ShaderProgram const& prg, ColorInfo const& colorInfo)
+		void DrawVector(glm::vec3 const& vec, glm::vec3 const& startPt, ShaderProgram const& prg, ColorInfo const& colorInfo)
 		{
-			Mat4 modelTr{};
+			glm::mat4 modelTr{};
 
-			Float32 const mag = glm::length(vec);
+			float const mag = glm::length(vec);
 			if (EpsilonEqual(mag, 0.0f)) {
 				return;
 			}
-			Vec3 const dir = vec * (1.0f / mag);
-			Mat4 const rot = glm::toMat4(glm::rotation(Vec3(0, 0, 1), dir));
+			glm::vec3 const dir = vec * (1.0f / mag);
+			glm::mat4 const rot = glm::toMat4(glm::rotation(glm::vec3(0, 0, 1), dir));
 
 			// Draw cylinder
 			{
-				modelTr = glm::translate(Mat4(1), startPt) *		   // translate s.t. bottom of cylinder is at startPt
+				modelTr = glm::translate(glm::mat4(1), startPt) *		   // translate s.t. bottom of cylinder is at startPt
 					rot *											   // rotate to point in direction of vec
-					glm::translate(Mat4(1), Vec3(0, 0, 0.5f * mag)) *  // shift to align "bottom" of cylinder with origin
-					glm::scale(Mat4(1), Vec3(0.05f, 0.05f, 0.5f * mag)); // scale to make skinny and as long as magnitude of vec
+					glm::translate(glm::mat4(1), glm::vec3(0, 0, 0.5f * mag)) *  // shift to align "bottom" of cylinder with origin
+					glm::scale(glm::mat4(1), glm::vec3(0.05f, 0.05f, 0.5f * mag)); // scale to make skinny and as long as magnitude of vec
 
 				drb::Mesh::ScopedUse use{ drb::Mesh::Cylinder() };
 				DrawMesh(use.mesh, prg, modelTr, colorInfo);
@@ -441,7 +449,7 @@ namespace drb {
 
 			// Draw cone
 			{
-				modelTr = glm::translate(Mat4(1), startPt + vec) * rot * glm::scale(Mat4(1), Vec3(0.2f));
+				modelTr = glm::translate(glm::mat4(1), startPt + vec) * rot * glm::scale(glm::mat4(1), glm::vec3(0.2f));
 				drb::Mesh::ScopedUse use{ drb::Mesh::Cone()};
 				DrawMesh(use.mesh, prg, modelTr, colorInfo);
 			}
@@ -463,15 +471,15 @@ namespace drb {
 					// Draw clip plane
 					{
 						drb::Mesh::ScopedUse use{ drb::Mesh::Quad() };
-						Mat4 const clipPlaneTr = glm::translate(Mat4(1), 0.5f * (p1 + p0))
-							* UnitVectorToBasis4(outwardNormal)
-							* glm::scale(Mat4(1), Vec3(8));
+						Mat4 const clipPlaneTr = glm::translate(glm::mat4(1), 0.5f * glm::vec3(p1 + p0))
+							* glm::mat4(UnitVectorToBasis4(outwardNormal))
+							* glm::scale(glm::mat4(1), glm::vec3(8));
 
 						DrawMesh(use.mesh, prg, clipPlaneTr, colorInfo);
 					}
 					// Draw normal of clip plane
 					{
-						DrawVector(outwardNormal, 0.5f * (p1 + p0), prg, colorInfo);
+						DrawVector(glm::vec3(outwardNormal), 0.5f * glm::vec3(p1 + p0), prg, colorInfo);
 					}
 			});
 		}
@@ -479,7 +487,14 @@ namespace drb {
 
 		void DrawAABB(AABB const& b, ShaderProgram const& prg, ColorInfo const& colorInfo)
 		{
-			Mat4 const modelTr = glm::translate(Mat4(1), b.Center()) * glm::scale(Mat4(1), b.Halfwidths());
+			glm::mat4 const modelTr = glm::translate(glm::mat4(1), glm::vec3(b.Center())) * glm::scale(glm::mat4(1), glm::vec3(b.Halfwidths()));
+
+			drb::Mesh::ScopedUse use{ drb::Mesh::Cube() };
+			DrawMesh(use.mesh, prg, modelTr, colorInfo);
+		}
+		void DrawOBB(AABB const& b, glm::mat4 const& rot, ShaderProgram const& prg, ColorInfo const& colorInfo)
+		{
+			glm::mat4 const modelTr = glm::translate(glm::mat4(1), glm::vec3(b.Center())) * rot * glm::scale(glm::mat4(1), glm::vec3(b.Halfwidths()));
 
 			drb::Mesh::ScopedUse use{ drb::Mesh::Cube() };
 			DrawMesh(use.mesh, prg, modelTr, colorInfo);
@@ -510,15 +525,16 @@ namespace drb {
 
 				auto PushVert = [&verts, &face, &cvx, &vertCount](unsigned vertIdx) {
 					// Insert world pos
-					Vec3 const v = cvx.GetVert(vertIdx);
+					glm::vec3 const v = glm::vec3( cvx.GetVert(vertIdx) );
 					verts.push_back(v.x);
 					verts.push_back(v.y);
 					verts.push_back(v.z);
 
 					// Insert vertex normal
-					verts.push_back(face.plane.n.x);
-					verts.push_back(face.plane.n.y);
-					verts.push_back(face.plane.n.z);
+					glm::vec3 const n = glm::vec3(face.plane.n);
+					verts.push_back(n.x);
+					verts.push_back(n.y);
+					verts.push_back(n.z);
 
 					// Insert uv
 					verts.push_back(0.0f);
@@ -549,23 +565,23 @@ namespace drb {
 			};
 		}
 
-		static inline Mat4 SphereTransform(Sphere const& sph, Mat4 const& tr)
+		static inline glm::mat4 SphereTransform(Sphere const& sph, glm::mat4 const& tr)
 		{
-			return tr * sph.Transform() * glm::scale(Mat4(1), Vec3(sph.r));
+			return tr * glm::mat4(sph.Transform()) * glm::scale(glm::mat4(1), glm::vec3(sph.r));
 		}
 
-		static inline Mat4 CubeTransform(Vec3 const& halfwidths, Mat4 const& tr)
+		static inline glm::mat4 CubeTransform(glm::vec3 const& halfwidths, glm::mat4 const& tr)
 		{
-			return tr * glm::scale(Mat4(1), halfwidths);
+			return tr * glm::scale(glm::mat4(1), halfwidths);
 		}
 
-		static void DrawCapsule(Capsule const& cap, ShaderProgram const& prg, Mat4 const& tr, ColorInfo const& colorInfo)
+		static void DrawCapsule(Capsule const& cap, ShaderProgram const& prg, glm::mat4 const& tr, ColorInfo const& colorInfo)
 		{
-			Mat4 modelTr{};
+			glm::mat4 modelTr{};
 
 			// Draw cylinder
 			{
-				modelTr = tr * cap.Transform() * glm::scale(Mat4(1), Vec3(cap.r - 0.01f, cap.SegmentHalfLength(), cap.r - 0.01f)) * glm::rotate(Mat4(1), 0.5f * 3.142f, Vec3(1, 0, 0)); // first rotation is to correct z-up model
+				modelTr = tr * glm::mat4(cap.Transform()) * glm::scale(glm::mat4(1), glm::vec3(Vec3(cap.r - 0.01, cap.SegmentHalfLength(), cap.r - 0.01))) * glm::rotate(glm::mat4(1), 0.5f * 3.142f, glm::vec3(1, 0, 0)); // first rotation is to correct z-up model
 
 				drb::Mesh::ScopedUse use{ drb::Mesh::Cylinder() };
 				DrawMesh(use.mesh, prg, modelTr, colorInfo);
@@ -577,11 +593,11 @@ namespace drb {
 				drb::Mesh::ScopedUse use{ drb::Mesh::Sphere() };
 
 				// Draw bottom sphere
-				modelTr = glm::translate(Mat4(1), segment.b) * glm::scale(Mat4(1), Vec3(cap.r));
+				modelTr = glm::translate(glm::mat4(1), glm::vec3(segment.b)) * glm::scale(glm::mat4(1), glm::vec3(cap.r));
 				DrawMesh(use.mesh, prg, modelTr, colorInfo);
 
 				// Draw top sphere
-				modelTr = glm::translate(Mat4(1), segment.e) * glm::scale(Mat4(1), Vec3(cap.r));
+				modelTr = glm::translate(glm::mat4(1), glm::vec3(segment.e)) * glm::scale(glm::mat4(1), glm::vec3(cap.r));
 				DrawMesh(use.mesh, prg, modelTr, colorInfo);
 
 			}

@@ -53,12 +53,12 @@ namespace drb {
 			return RotateTo(Quat(targetEulerAngles));
 		}
 
-		inline Vec3 RigidBody::GetPosition() const
+		inline Vec3 const& RigidBody::GetPosition() const
 		{
 			return position;
 		}
 		
-		inline Quat RigidBody::GetOrientation() const
+		inline Quat const& RigidBody::GetOrientation() const
 		{
 			return orientation;
 		}
@@ -68,19 +68,49 @@ namespace drb {
 			return glm::toMat3(orientation);
 		}
 		
-		inline Vec3 RigidBody::GetLinearVelocity() const 
+		inline Vec3	const& RigidBody::GetPreviousPosition() const
+		{
+			return prevPosition;
+		}
+
+		inline Quat	const& RigidBody::GetPreviousOrientation() const
+		{
+			return prevOrientation;
+		}
+
+		inline Mat3 RigidBody::GetPreviousOrientationMatrix() const
+		{
+			return glm::toMat3(prevOrientation);
+		}
+
+		inline Vec3 const& RigidBody::GetLinearVelocity() const 
 		{
 			return linearVelocity;
 		}
 		
-		inline Vec3 RigidBody::GetAngularVelocity() const 
+		inline Vec3 const& RigidBody::GetAngularVelocity() const 
 		{
 			return angularVelocity;
 		}
+
+		inline Vec3	const& RigidBody::GetPreviousLinearVelocity() const
+		{
+			return prevLinearVelocity;
+		}
 		
+		inline Vec3	const& RigidBody::GetPreviousAngularVelocity() const
+		{
+			return prevAngularVelocity;
+		}
+
 		inline Mat4 RigidBody::GetTransformMatrix() const 
 		{
 			return glm::translate(Mat4(1), position) * glm::toMat4(orientation);
+		}
+		
+		inline Mat4 RigidBody::GetPreviousTransformMatrix() const 
+		{
+			return glm::translate(Mat4(1), prevPosition) * glm::toMat4(prevOrientation);
 		}
 				    
 		inline Mat3 RigidBody::GetInertiaTensor() const
@@ -101,22 +131,36 @@ namespace drb {
 			return GetInertiaTensor() + GetMass() * (glm::dot(disp, disp) * Mat3(1) - glm::outerProduct(disp, disp));
 		}
 
-		inline Float32 RigidBody::GetMass() const 
+		inline Mat3 RigidBody::GetInertiaTensorLocal() const
 		{
-			return 1.0f / invMass;
+			return glm::inverse(invInertiaLocal);
+		}
+		inline Mat3	const& RigidBody::GetInverseInertiaTensorLocal() const
+		{
+			return invInertiaLocal;
+		}
+
+		inline Real RigidBody::GetMass() const 
+		{
+			return invMass == 0.0_r ? 0.0_r : 1.0_r / invMass;
+		}
+
+		inline Real RigidBody::GetInverseMass() const 
+		{
+			return invMass;
 		}
 		
-		inline Float32 RigidBody::GetFriction() const 
+		inline Real RigidBody::GetFriction() const 
 		{
 			return friction;
 		}
 
-		inline Float32	RigidBody::GetResitution() const
+		inline Real	RigidBody::GetResitution() const
 		{
 			return restitution;
 		}
 		
-		inline Float32 RigidBody::GetGravityScale() const 
+		inline Real RigidBody::GetGravityScale() const 
 		{
 			return gravityScale;
 		}
@@ -124,6 +168,36 @@ namespace drb {
 		inline RigidBody::Type RigidBody::GetType() const 
 		{
 			return type;
+		}
+
+		inline Vec3 RigidBody::WorldToLocalVec(Vec3 const& vec) const
+		{
+			return glm::inverse(orientation) * vec;
+		}
+
+		inline Vec3 RigidBody::WorldToLocalPoint(Vec3 const& pt) const
+		{
+			return glm::inverse(orientation) * (pt - position);
+		}
+
+		inline Vec3 RigidBody::LocalToWorldVec(Vec3 const& vec) const
+		{
+			return orientation * vec;
+		}
+
+		inline Vec3 RigidBody::LocalToWorldPoint(Vec3 const& pt) const
+		{
+			return orientation * pt + position;
+		}
+
+		inline Vec3 RigidBody::LocalToPreviousWorldVec(Vec3 const& vec) const
+		{
+			return prevOrientation * vec;
+		}
+
+		inline Vec3 RigidBody::LocalToPreviousWorldPoint(Vec3 const& pt) const
+		{
+			return prevOrientation * pt + prevPosition;
 		}
 
 		inline std::shared_ptr<CollisionGeometry const> const RigidBody::GetCollisionGeometry() const
@@ -146,7 +220,7 @@ namespace drb {
 
 		inline RigidBody& RigidBody::SetOrientation(Quat const& newOrientation) 
 		{
-			ASSERT(not EpsilonEqual(newOrientation, Quat(0.0, 0.0, 0.0f, 0.0f)), "Bad quaternion");
+			ASSERT(not EpsilonEqual(newOrientation, Quat{0,0,0,0}), "Bad quaternion");
 			orientation = newOrientation;
 			prevOrientation = newOrientation;
 			return *this;
@@ -169,32 +243,32 @@ namespace drb {
 			return *this;
 		}
 
-		inline RigidBody& RigidBody::SetMass(Float32 mass)
+		inline RigidBody& RigidBody::SetMass(Real mass)
 		{
-			ASSERT(mass > 0.0f, "Mass must be nonzero");
+			ASSERT(mass > 0.0_r, "Mass must be nonzero");
 
-			invInertiaLocal *= 1.0f / (invMass * mass);
+			invInertiaLocal *= 1.0_r / (invMass * mass);
 
-			invMass = 1.0f / mass;
+			invMass = 1.0_r / mass;
 
 			return *this;
 		}
 
-		inline RigidBody& RigidBody::SetGravityScale(Float32 gravity)
+		inline RigidBody& RigidBody::SetGravityScale(Real gravity)
 		{
 			gravityScale = gravity;
 			return *this;
 		}
 
-		inline RigidBody& RigidBody::SetFriction(Float32 f)
+		inline RigidBody& RigidBody::SetFriction(Real f)
 		{
 			friction = f;
 			return *this;
 		}
 
-		inline RigidBody& RigidBody::SetRestitution(Float32 r)
+		inline RigidBody& RigidBody::SetRestitution(Real r)
 		{
-			ASSERT(r >= 0.0f && r <= 1.0f, "Restitution Coefficient should be in range [0, 1]");
+			ASSERT(r >= 0.0_r && r <= 1.0_r, "Restitution Coefficient should be in range [0, 1]");
 			restitution = r;
 			return *this;
 		}
@@ -209,8 +283,8 @@ namespace drb {
 		inline RigidBody& RigidBody::SetCollisionGeometry(std::shared_ptr<CollisionGeometry const> geomPtr)
 		{
 			geometry = std::move(geomPtr);
-			invInertiaLocal = geometry->InverseInertia();
 			invMass = geometry->InverseMass();
+			invInertiaLocal = geometry->InverseInertia();
 			return *this;
 		}
 		

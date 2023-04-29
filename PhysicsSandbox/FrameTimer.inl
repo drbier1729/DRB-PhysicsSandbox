@@ -27,7 +27,7 @@ namespace drb {
 		}
 		
 		Float64 const lastFrame = frameElapsed.count() * durationTypeRatio;
-		deltaTime = dtSmoothing * lastFrame + (1.0f - dtSmoothing) * deltaTime;
+		deltaTime = dtSmoothing * lastFrame + (1.0 - dtSmoothing) * deltaTime;
 	}
 
 	inline FrameTimer::Duration FrameTimer::LastFrameTime() const

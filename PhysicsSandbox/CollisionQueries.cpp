@@ -4,8 +4,10 @@
 #include "Math.h"
 #include "GeometryPrimitiveQueries.h"
 #include "SATGJK.h"
+#include "DRBAssert.h"
 
 #define COLLIDE_FCN_NOT_IMPLEMENTED return ContactManifold{};
+
 
 namespace drb::physics {
 
@@ -31,7 +33,7 @@ namespace drb::physics {
 
 		// Converts a polygon to a contact manifold the uses the best 4 (or fewer) points
 		// This has a side effect of projecting incFacePoly onto refFacePlane
-		static	ContactManifold ReduceContactSet(Polygon& incFacePoly, Plane const& refFacePlane, Mat4 const& refTr);
+		static	ContactManifold ReduceContactSet(Polygon& incFacePoly, Plane const& refFacePlane, Mat4 const& refTr, Mat4 const& invIncTr);
 
 		// Helper to flip the normal and features of a manifold
 		static inline void Flip(ContactManifold& m);
@@ -76,46 +78,47 @@ namespace drb::physics {
 	}
 
 
-	ContactManifold Collide(Sphere const& A, Vec3 const& dispA, Sphere const& B, Vec3 const& dispB)
+	ContactManifold Collide(Sphere const& A, Mat4 const& trA, Sphere const& B, Mat4 const& trB)
 	{
 		ContactManifold result{};
 
 		// Get world-space centers
-		Vec3 const cA = dispA + A.Position();
-		Vec3 const cB = dispB + B.Position();
+		Vec3 const cA = Vec3(trA[3]) + A.Position();
+		Vec3 const cB = Vec3(trB[3]) + B.Position();
 
 		// Compute displacement between centers
 		Vec3 const disp  = cB - cA;
-		Float32 const d2 = glm::length2(disp);
+		Real const d2 = glm::length2(disp);
 
 		// Test if centers are at the same point
-		if (EpsilonEqual(d2, 0.0f, 1.0e-12f))
+		if (EpsilonEqual(d2, 0.0_r, 1.0e-12_r))
 		{
 			result.normal = Vec3(1, 0, 0);// arbitrary direction 
 		}
 		else
 		{
-			Float32 const dist = glm::sqrt(d2);
-			Float32 const pen = (A.r + B.r) - dist;
-			if (pen > 0.0f) {
+			Bool const collide = (A.r + B.r) * (A.r + B.r) > d2;
+			if (collide) 
+			{
+				Mat3 const invRotA = glm::transpose(trA);
+				Mat3 const invRotB = glm::transpose(trB);
 
-				result.normal = disp / dist;
+				Vec3 const normal = disp / glm::sqrt(d2);
 
-				result.contacts[result.numContacts++] = Contact{
-					// contact position is halfway between the surface points of two spheres
-					.position = result.normal * (A.r - 0.5f * pen) + cA,
-					.penetration = pen,
-				};
+				result.normal = normal;
+				result.contacts[0] = CollisionConstraint{A.r * invRotA * normal, -B.r * invRotB * normal};
+				result.numContacts = 1;
+				
 			}
 		}
 
 		return result;
 	}
 
-	ContactManifold Collide(Sphere const& A, Vec3 const& dispA, Capsule const& B, Mat4 const& trB)
+	ContactManifold Collide(Sphere const& A, Mat4 const& trA, Capsule const& B, Mat4 const& trB)
 	{
 		Segment const segB = B.CentralSegment().Transformed(trB);
-		Vec3 const cA = dispA + A.Position();
+		Vec3 const cA = Vec3(trA[3]) + A.Position();
 
 		// Closest point to a on internal line segment of b
 		Vec3 const p = ClosestPoint(segB, cA);
@@ -124,78 +127,79 @@ namespace drb::physics {
 		// to sphere A on central segment of capsule B with radius of capsule B
 		Sphere const S{ p, B.r};
 
-		return Collide(A, cA, S, Vec3(0));
+		return Collide(A, trA, S, Mat4(1));
 	}
 
-	ContactManifold Collide(Sphere const& A, Vec3 const& dispA, Box const& B, Mat4 const& trB)
+	ContactManifold Collide(Sphere const& A, Mat4 const& trA, Box const& B, Mat4 const& trB)
 	{
 		COLLIDE_FCN_NOT_IMPLEMENTED
 	}
 
-	ContactManifold Collide(Sphere const& A, Vec3 const& dispA, Convex const& B, Mat4 const& trB_)
+	ContactManifold Collide(Sphere const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB_)
 	{
 		COLLIDE_FCN_NOT_IMPLEMENTED
 
-		Vec3 const cA = dispA + A.Position();
-		Mat4 const trB = trB_ * B.Transform();
+		//Vec3 const cA = dispA + A.Position();
+		//Mat4 const trB = trB_ * B.Transform();
 
-		auto const gjkResult = util::GJK(cA, B, trB);
+		//auto const gjkResult = util::GJK(cA, B, trB);
 
-		Vec3 const normal = Normalize(gjkResult.ptB - gjkResult.ptA);
+		//Vec3 const normal = Normalize(gjkResult.ptB - gjkResult.ptA);
 
-		/*if (gjkResult.d2 > A.r * A.r)
-		{
-			return ContactManifold{
-				.normal = normal
-			};
-		}
-		else if (gjkResult.d2 > 0.0f)
-		{
-			return ContactManifold{
-				.contacts = Contact{
-					.position = gjkResult.ptA + normal * A.r,
-					.penetration = A.r - glm::sqrt(gjkResult.d2),
-				},
-				.numContacts = 1,
-				.normal = normal,
-			};
-		}
-		else // deep collision
-		{
-			// find best separating axis (face normal of B)
-		}
-		*/
+		///*if (gjkResult.d2 > A.r * A.r)
+		//{
+		//	return ContactManifold{
+		//		.normal = normal
+		//	};
+		//}
+		//else if (gjkResult.d2 > 0.0)
+		//{
+		//	return ContactManifold{
+		//		.contacts = Contact{
+		//			.position = gjkResult.ptA + normal * A.r,
+		//			.penetration = A.r - glm::sqrt(gjkResult.d2),
+		//		},
+		//		.numContacts = 1,
+		//		.normal = normal,
+		//	};
+		//}
+		//else // deep collision
+		//{
+		//	// find best separating axis (face normal of B)
+		//}
+		//*/
 
-		// DEBUG
-		return ContactManifold{
-				.contacts = {
-					Contact{
-						.position = gjkResult.ptA,
-						.penetration = 0.0f,
-					},
-					Contact{
-						.position = gjkResult.ptB,
-						.penetration = 0.0f,
-					},
-				},
-				.numContacts = 2,
-				.normal = normal,
-		};
+		//// DEBUG
+		//return ContactManifold{
+		//		.contacts = {
+		//			Contact{
+		//				.position = gjkResult.ptA,
+		//				.penetration = 0.0,
+		//			},
+		//			Contact{
+		//				.position = gjkResult.ptB,
+		//				.penetration = 0.0,
+		//			},
+		//		},
+		//		.numContacts = 2,
+		//		.normal = normal,
+		//};
 		// END DEBUG
 	}
 
 
 	ContactManifold Collide(Capsule const& A, Mat4 const& trA, Capsule const& B, Mat4 const& trB)
 	{
-		static constexpr Float32 tol = 1.0e-12f;
+		static constexpr Real tol = 1.0e-12_r;
 
+		// We perform all operations in world space
 		Segment const segA = A.CentralSegment().Transformed(trA);
 		Segment       segB = B.CentralSegment().Transformed(trB); // not const b/c may swap b with e later
 
-		Vec3 const    vecA  = segA.Vector();
-		Vec3 const    vecB  = segB.Vector();
-		Float32 const mag2A = segA.Length2();
-		Float32 const mag2B = segB.Length2();
+		Vec3 const vecA  = segA.Vector();
+		Vec3 const vecB  = segB.Vector();
+		Real const mag2A = segA.Length2();
+		Real const mag2B = segB.Length2();
 
 		// Check for capsules degenerating to spheres. If they do,
 		// we can just do a sphere-sphere or sphere-capsule collision.
@@ -207,16 +211,16 @@ namespace drb::physics {
 			if (BisSphere) // Both spheres
 			{
 				Sphere const sB{ segB.b, B.r };
-				return Collide(sA, Vec3(0), sB, Vec3(0)); // Sphere-Sphere
+				return Collide(sA, Mat4(1), sB, Mat4(1)); // Sphere-Sphere
 			}
 
 			// Else: only A is a sphere
-			return Collide(sA, Vec3(0), B, trB); // Sphere-Capsule
+			return Collide(sA, Mat4(1), B, trB); // Sphere-Capsule
 		}
 		else if (BisSphere)
 		{
 			Sphere const sB{ segB.b, B.r };
-			ContactManifold m = Collide(sB, Vec3(0), A, trA); // Sphere-Capsule
+			ContactManifold m = Collide(sB, Mat4(1), A, trA); // Sphere-Capsule
 			util::Flip(m);
 			return m;
 		}
@@ -224,7 +228,7 @@ namespace drb::physics {
 
 
 		// Detect parallel capsules
-		Float32 const AdotB = glm::dot(vecA, vecB);
+		Real const AdotB = glm::dot(vecA, vecB);
 		Bool const parallel = glm::abs(AdotB * AdotB - mag2A * mag2B) < tol;
 
 		if (not parallel)
@@ -233,26 +237,26 @@ namespace drb::physics {
 			auto const [pA, pB, d2] = ClosestPointsNonDegenerate(segA, segB, vecA, vecB, mag2A, mag2B);
 			if (d2 > (A.r + B.r) * (A.r + B.r)) {
 				return ContactManifold{
-					.normal = EpsilonEqual(d2, 0.0f, tol) ? Vec3(1,0,0) : (pB - pA) / glm::sqrt(d2)
+					.normal = EpsilonEqual(d2, 0.0_r, tol) ? Vec3(1,0,0) : (pB - pA) / glm::sqrt(d2)
 				};
 			}
 
 			// Construct two spheres on the fly centered at closest points between
 			// central segments and with radii equal to that of the capsules
 			Sphere const sA{ pA, A.r }, sB{ pB, B.r };
-			return Collide(sA, Vec3(0), sB, Vec3(0)); // Sphere-Sphere
+			return Collide(sA, Mat4(1), sB, Mat4(1)); // Sphere-Sphere
 		}
 		// Else: capsules are parallel
 
 		// Need to find two contact points, clipping the central
 		// segments against each other. To do this, first we'll
 		// project beginning of segB onto the line defined by segA.
-		Vec4 const pLineA0 = ClosestPointOnLine(segB.b, vecA, segA.b);
+		Vec4 const pLineA0 = ClosestPointOnLine(vecA, segA.b, segB.b);
 
 		// To clip this point, we'll clamp the "t" param from
 		// the above computation, then use this to compute 
 		// the point on segA
-		Float32 const t0 = glm::clamp(pLineA0.w, 0.0f, 1.0f);
+		Real const t0 = glm::clamp(pLineA0.w, 0.0_r, 1.0_r);
 		Vec3 const pA0 = vecA * t0 + segA.b;
 
 		// For the other point, we'll just handle the clamping directly
@@ -264,50 +268,58 @@ namespace drb::physics {
 		{
 			// Do sphere capsule collision
 			Sphere const sA{ pA0, A.r };
-			return Collide(sA, Vec3(0), B, trB); // Sphere-Capsule
+			return Collide(sA, Mat4(1), B, trB); // Sphere-Capsule
 		}
 		// Else: we actually do have 2 points
 
 		// The axis of collision MUST be orthogonal to both capsule 
 		// segments and can be trivially obtained from our line proj
 		Vec3 const axis = segB.b - Vec3(pLineA0);
-		Float32 const d2 = glm::length2(axis);
+		Real const d2 = glm::length2(axis);
 
 		// Check for overlapping segments
-		if (EpsilonEqual(d2, 0.0f, tol))
+		if (EpsilonEqual(d2, 0.0_r, tol))
 		{
 			return ContactManifold{
 				.normal = Vec3(1,0,0)
 			};
 		}
 
-		// Check for collision
-		Float32 const dist = glm::sqrt(d2);
-		Vec3 const normal = axis / dist;
-		Float32 const pen = A.r + B.r - dist;
-		if (pen > 0.0f)
-		{
-			// Collision!
-			return ContactManifold{
-				.contacts = {
-					Contact{
-						.position = normal * (A.r - 0.5f * pen) + pA0,
-						.penetration = pen
-					},
-					Contact{
-						.position = normal * (A.r - 0.5f * pen) + Vec3(pA1),
-						.penetration = pen
-					}
-				},
-				.numContacts = 2,
-				.normal = normal
-			};
-		}
-		// Else: no collision
+		ContactManifold result{};
 
-		return ContactManifold{
-			.normal = normal
-		};
+		Real const dist = glm::sqrt(d2);
+		Real const pen = (A.r + B.r) - dist;
+		Vec3 const normal = axis / dist;
+		if (pen > 0.0_r)
+		{
+			// Points on the two capsules in world space
+			Vec3 const wA0 = pA0 + normal * A.r;
+			Vec3 const wA1 = Vec3(pA1) + normal * A.r;
+			Vec3 const wB0 = pA0 + normal * (A.r - pen);
+			Vec3 const wB1 = Vec3(pA1) + normal * (A.r - pen);
+
+			// Convert to local space
+			result.contacts = {
+				CollisionConstraint{
+					glm::inverse(trA) * Vec4(wA0, 1),
+					glm::inverse(trB) * Vec4(wB0, 1)
+				},
+				CollisionConstraint{
+					glm::inverse(trA) * Vec4(wA1, 1),
+					glm::inverse(trB) * Vec4(wB1, 1)
+				}
+			};
+			/*
+			* Omit features until we actually need them... a bit hard to define
+			result.features = {
+				FeaturePair{.fA = , .fB = },
+			}*/
+			result.numContacts = 2;
+			result.normal = normal;
+		}
+
+		// Else: no collision
+		return result;
 	}
 
 	ContactManifold Collide(Capsule const& A, Mat4 const& trA, Box const& B, Mat4 const& trB)
@@ -319,71 +331,71 @@ namespace drb::physics {
 	{
 		COLLIDE_FCN_NOT_IMPLEMENTED
 
-		Mat4 const trB = trB_ * B.Transform();
+		//Mat4 const trB = trB_ * B.Transform();
 
-		Segment const segA = A.CentralSegment().Transformed(trA);
-		auto const gjkResult = util::GJK(segA, B, trB);
+		//Segment const segA = A.CentralSegment().Transformed(trA);
+		//auto const gjkResult = util::GJK(segA, B, trB);
 
-		Vec3 const normal = Normalize(gjkResult.ptB - gjkResult.ptA);
+		//Vec3 const normal = Normalize(gjkResult.ptB - gjkResult.ptA);
 
-		/*if (gjkResult.d2 > A.r * A.r)
-		{
-			return ContactManifold{
-				.normal = normal
-			};
-		}
-		else if (gjkResult.d2 > 0.0f)
-		{
-			return ContactManifold{
-				.contacts = Contact{
-					.position = gjkResult.ptA + normal * A.r,
-					.penetration = A.r - glm::sqrt(gjkResult.d2),
-				},
-				.numContacts = 1,
-				.normal = normal,
-			};
-		}
-		else // deep collision
-		{
-			// find best separating axis (face normal of B)
-		}
-		*/
+		///*if (gjkResult.d2 > A.r * A.r)
+		//{
+		//	return ContactManifold{
+		//		.normal = normal
+		//	};
+		//}
+		//else if (gjkResult.d2 > 0.0)
+		//{
+		//	return ContactManifold{
+		//		.contacts = Contact{
+		//			.position = gjkResult.ptA + normal * A.r,
+		//			.penetration = A.r - glm::sqrt(gjkResult.d2),
+		//		},
+		//		.numContacts = 1,
+		//		.normal = normal,
+		//	};
+		//}
+		//else // deep collision
+		//{
+		//	// find best separating axis (face normal of B)
+		//}
+		//*/
 
-		// DEBUG
-		return ContactManifold{
-				.contacts = {
-					Contact{
-						.position = gjkResult.ptA,
-						.penetration = 0.0f,
-					},
-					Contact{
-						.position = gjkResult.ptB,
-						.penetration = 0.0f,
-					},
-				},
-				.numContacts = 2,
-				.normal = normal,
-		};
-		// END DEBUGs
+		//// DEBUG
+		//return ContactManifold{
+		//		.contacts = {
+		//			Contact{
+		//				.position = gjkResult.ptA,
+		//				.penetration = 0.0,
+		//			},
+		//			Contact{
+		//				.position = gjkResult.ptB,
+		//				.penetration = 0.0,
+		//			},
+		//		},
+		//		.numContacts = 2,
+		//		.normal = normal,
+		//};
+		//// END DEBUGs
 	}
 
 
 	ContactManifold Collide(Box const& A, Mat4 const& trA_, Box const& B, Mat4 const& trB_)
 	{
 		// These epsilon values are used to prevent issues with parallel axes
-		static constexpr Float32 epsilon = 1.0e-4f;
+		static constexpr Real epsilon = 1.0e-4_r;
 		static constexpr Mat3 epsilonMat3 = Mat3{ Vec3(epsilon), Vec3(epsilon), Vec3(epsilon) };
 
 		// These values are used to make Face A preferable to Face B, and both faces
 		// preferable to an Edge Pair when deciding what contact to generate.
 		// Since values are negative, this multiplier makes values closer
 		// to zero, therefore more preferable.
-		static constexpr Float32 linearSlop = 0.005f;
-		static constexpr Float32 relEdgeTolerance = 0.90f;
-		static constexpr Float32 relFaceTolerance = 0.98f;
-		static constexpr Float32 absTolerance = 0.5f * linearSlop;
+		static constexpr Real linearSlop = 0.005_r;
+		static constexpr Real relEdgeTolerance = 0.90_r;
+		static constexpr Real relFaceTolerance = 0.98_r;
+		static constexpr Real absTolerance = 0.5_r * linearSlop;
 
-		// Perform computations in local space of A
+		// Get transform data
 		Mat4 const trA = trA_ * A.Transform();
 		Mat4 const trB = trB_ * B.Transform();
 		Mat3 const rotA = trA;
@@ -391,6 +403,7 @@ namespace drb::physics {
 		Vec3 const posA = trA[3];
 		Vec3 const posB = trB[3];
 
+		// Perform computations in local space of A
 		Mat3 const R = glm::transpose(rotA) * rotB;                                           // expresses B in coordinate frame of A. transpose (inverse) goes the other way from A's coords to B's.
 		Mat3 const absR = Mat3(glm::abs(R[0]), glm::abs(R[1]), glm::abs(R[2])) + epsilonMat3; // epsilon used to handle nearly parallel edges
 		Vec3 const worldT = posB - posA;
@@ -434,37 +447,37 @@ namespace drb::physics {
 			Plane clipPlane{ .n = Vec3(0), .d = 0 };
 
 			{
-				clipPlane.n[j] = 1.0f;
+				clipPlane.n[j] = 1.0_r;
 				clipPlane.d = ref.extents[j];
 
 				result.Split(clipPlane, front, back);
 				std::swap(result.verts, back.verts);
 
 				back.verts.clear();
-				clipPlane.n[j] = 0.0f;
+				clipPlane.n[j] = 0.0_r;
 			}
 			{
-				clipPlane.n[k] = 1.0f;
+				clipPlane.n[k] = 1.0_r;
 				clipPlane.d = ref.extents[k];
 
 				result.Split(clipPlane, front, back);
 				std::swap(result.verts, back.verts);
 
 				back.verts.clear();
-				clipPlane.n[k] = 0.0f;
+				clipPlane.n[k] = 0.0_r;
 			}
 			{
-				clipPlane.n[j] = -1.0f;
+				clipPlane.n[j] = -1.0_r;
 				clipPlane.d = ref.extents[j];
 
 				result.Split(clipPlane, front, back);
 				std::swap(result.verts, back.verts);
 
 				back.verts.clear();
-				clipPlane.n[j] = 0.0f;
+				clipPlane.n[j] = 0.0_r;
 			}
 			{
-				clipPlane.n[k] = -1.0f;
+				clipPlane.n[k] = -1.0_r;
 				clipPlane.d = ref.extents[k];
 
 				result.Split(clipPlane, front, back);
@@ -478,22 +491,22 @@ namespace drb::physics {
 		Int32   bestFaceAxisA = -1;
 		Int32   bestFaceAxisB = -1;
 		Int32   bestEdgeAxisA = -1, bestEdgeAxisB = -1;
-		Float32 bestFaceSepA = std::numeric_limits<Float32>::lowest();
-		Float32 bestFaceSepB = std::numeric_limits<Float32>::lowest();
-		Float32 bestEdgeSep = std::numeric_limits<Float32>::lowest();
+		Real bestFaceSepA = std::numeric_limits<Real>::lowest();
+		Real bestFaceSepB = std::numeric_limits<Real>::lowest();
+		Real bestEdgeSep = std::numeric_limits<Real>::lowest();
 
 		ContactManifold result{};
 
 		// Tests for face normals of A
 		Vec3 const faceSepsA = glm::abs(t) - (A.extents + absR * B.extents);
 		for (Int32 i = 0; i < 3; ++i) {
-			if (faceSepsA[i] > 0.0f) {
-				Vec3 localDir{ 0.0f };
-				localDir[i] = 1.0f;
+			if (faceSepsA[i] > 0.0_r) {
+				Vec3 localDir{ 0.0_r };
+				localDir[i] = 1.0_r;
 
-				result.normal = rotA * localDir;
-				if (glm::dot(result.normal, worldT) < 0.0f) {
-					result.normal *= -1.0f;
+				result.normal = localDir;
+				if (glm::dot(result.normal, t) < 0.0_r) {
+					result.normal *= -1.0_r;
 				}
 				return result;
 			}
@@ -506,13 +519,13 @@ namespace drb::physics {
 		// Tests for face normals of B
 		Vec3 const faceSepsB = glm::abs(glm::transpose(R) * t) - (glm::transpose(absR) * A.extents + B.extents);
 		for (Int32 i = 0; i < 3; ++i) {
-			if (faceSepsB[i] > 0.0f) {
-				Vec3 localDir{ 0.0f };
-				localDir[i] = 1.0f;
+			if (faceSepsB[i] > 0.0_r) {
+				Vec3 localDir{ 0.0_r };
+				localDir[i] = 1.0_r;
 
-				result.normal = rotB * localDir;
-				if (glm::dot(result.normal, worldT) < 0.0f) {
-					result.normal *= -1.0f;
+				result.normal = R * localDir;
+				if (glm::dot(result.normal, t) < 0.0_r) {
+					result.normal *= -1.0_r;
 				}
 				return result;
 			}
@@ -527,32 +540,32 @@ namespace drb::physics {
 			Int32 m = 1, n = 2;
 			for (Int32 a = 0; a < 3; ++a)
 			{
-				Vec3 localA{ 0.0f };
-				localA[a] = 1.0f;
+				Vec3 localA{ 0.0_r };
+				localA[a] = 1.0_r;
 
 				Int32 j = 1, k = 2;
 
 				for (Int32 b = 0; b < 3; ++b)
 				{
-					Float32 const ra = A.extents[m] * absR[b][n] + A.extents[n] * absR[b][m];
-					Float32 const rb = B.extents[j] * absR[k][a] + B.extents[k] * absR[j][a];
+					Real const ra = A.extents[m] * absR[b][n] + A.extents[n] * absR[b][m];
+					Real const rb = B.extents[j] * absR[k][a] + B.extents[k] * absR[j][a];
 
-					Float32 const sep = glm::abs(t[n] * R[b][m] - t[m] * R[b][n]) - (ra + rb);
+					Real const sep = glm::abs(t[n] * R[b][m] - t[m] * R[b][n]) - (ra + rb);
 
-					Vec3 localB{ 0.0f };
-					localB[b] = 1.0f;
+					Vec3 localB{ 0.0_r };
+					localB[b] = 1.0_r;
 
-					if (sep > 0.0f) {
-						result.normal = glm::cross(rotA * localA, rotB * localB);
-						if (glm::dot(result.normal, worldT) < 0.0f) {
-							result.normal *= -1.0f;
+					if (sep > 0.0_r) {
+						result.normal = glm::cross(localA, R * localB);
+						if (glm::dot(result.normal, t) < 0.0_r) {
+							result.normal *= -1.0_r;
 						}
 						return result;
 					}
 					else if (sep > bestEdgeSep) {
 
 						// If edges are not parallel, record the axis
-						if (glm::abs(glm::dot(R * localB, localA)) + epsilon < 1.0f) {
+						if (glm::abs(glm::dot(R * localB, localA)) + epsilon < 1.0_r) {
 							bestEdgeSep = sep;
 							bestEdgeAxisA = a;
 							bestEdgeAxisB = b;
@@ -575,54 +588,56 @@ namespace drb::physics {
 		if (edgeContact) {
 			// Compute contact normal in local space of A
 			normalLocalA = IndexToAxis((bestEdgeAxisA * 3 + bestEdgeAxisB) + 6);
-			if (glm::dot(normalLocalA, t) < 0.0f) { // flip s.t. pointing A->B
-				normalLocalA *= -1.0f;
+			if (glm::dot(normalLocalA, t) < 0.0_r) { // flip s.t. pointing A->B
+				normalLocalA *= -1.0_r;
 			}
 
-			// Identify which edges (in world space) are in contact
-			Segment const edgeA = A.SupportingEdgeWithDirection(bestEdgeAxisA, normalLocalA)
-								   .Transformed(trA);
-			Segment const edgeB = B.SupportingEdgeWithDirection(bestEdgeAxisB, glm::transpose(R) * -normalLocalA)
-								   .Transformed(trB);
+			Mat4 const invTrA = glm::inverse(trA);
+			Mat4 const invTrB = glm::inverse(trB);
 
-			// Compute closest points in world space
+			// Identify which edges (in A's local space) are in contact
+			Segment const edgeA = A.SupportingEdgeWithDirection(bestEdgeAxisA, normalLocalA);
+			Segment const edgeB = B.SupportingEdgeWithDirection(bestEdgeAxisB, glm::transpose(R) * -normalLocalA)
+								   .Transformed(invTrA * trB);
+			
+			// Compute closest points in local space of A
 			auto const closestPts = ClosestPoints(edgeA, edgeB);
 
-			// Build a contact point at midpoint between the two closest points
-			result.contacts[result.numContacts++] = Contact{
-				.position = 0.5f * (closestPts.ptA + closestPts.ptB),
-				.penetration = -bestEdgeSep
+			// Build a contact point
+			result.contacts[result.numContacts++] = CollisionConstraint{
+				closestPts.ptA,
+				invTrB * trA * Vec4(closestPts.ptB, 1)
 			};
 		}
 		else {
 			if (faceBContact) {
 				// Compute normal in local space of A
 				normalLocalA = IndexToAxis(bestFaceAxisB + 3);
-				if (glm::dot(normalLocalA, t) < 0.0f) { // flip s.t. pointing A->B
-					normalLocalA *= -1.0f;
+				if (glm::dot(normalLocalA, t) < 0.0_r) { // flip s.t. pointing A->B
+					normalLocalA *= -1.0_r;
 				}
 				Vec3 const normalLocalB = glm::transpose(R) * normalLocalA;
 
+				// Generate polygon for incident face in local space of reference face
 				auto const incidentFace  = A.SupportingFace(normalLocalA);
 				Polygon clipFace = ClipIncidentToReference(B, A, bestFaceAxisB, incidentFace, glm::inverse(trB) * trA);
 				Int32 const numClipVerts = static_cast<Int32>(clipFace.verts.size());
 
 				ASSERT(0 <= numClipVerts && numClipVerts <= 8, "Invalid contact point count");
 
-				// Compute penetration depths and project clip verts onto ref plane
-				Plane const refFacePlane{ .n = -normalLocalB, .d = B.extents[bestFaceAxisB] };
-				Float32 depths[8] = {};
-				for (Int32 i = 0; i < numClipVerts; ++i) {
-					depths[i] = SignedDistance(refFacePlane, clipFace.verts[i]);
-					clipFace.verts[i] -= depths[i] * refFacePlane.n;
-				}
+				// We may need to convert from local space of B to local space of A,
+				// so precompute the inverse transform of A
+				Mat4 const invTrA = glm::inverse(trA);
 
-				// Finally, generate the contact points
+				// Compute separation of each point and store them
+				Plane const refFacePlane{ .n = -normalLocalB, .d = B.extents[bestFaceAxisB] };
 				for (Int32 i = 0; i < numClipVerts; ++i) {
-					if (depths[i] < epsilon) {
-						result.contacts[result.numContacts++] = Contact{
-							.position = trB * Vec4(clipFace.verts[i], 1),
-							.penetration = -depths[i]
+					Vec3 const& v = clipFace.verts[i];
+					Real const sep = SignedDistance(refFacePlane, v);
+					if (sep < 0.0_r) {
+						result.contacts[result.numContacts++] = CollisionConstraint{
+							invTrA * trB * Vec4(v - refFacePlane.n * sep,1),
+							v - sep * refFacePlane.n
 						};
 					}
 				}
@@ -631,8 +646,8 @@ namespace drb::physics {
 
 				// Compute normal in local space of A, and in world space, pointing A->B
 				normalLocalA = IndexToAxis(bestFaceAxisA);
-				if (glm::dot(normalLocalA, t) < 0.0f) {
-					normalLocalA *= -1.0f;
+				if (glm::dot(normalLocalA, t) < 0.0_r) {
+					normalLocalA *= -1.0_r;
 				}
 				Vec3 const normalLocalB = glm::transpose(R) * normalLocalA;
 
@@ -642,29 +657,28 @@ namespace drb::physics {
 
 				ASSERT(0 <= numClipVerts && numClipVerts <= 8, "Invalid contact point count");
 
-				// Compute penetration depths and project clip verts onto ref plane
-				Plane const refFacePlane{ .n = normalLocalA, .d = A.extents[bestFaceAxisA] };
-				Float32 depths[8] = {};
-				for (Int32 i = 0; i < numClipVerts; ++i) {
-					depths[i] = SignedDistance(refFacePlane, clipFace.verts[i]);
-					clipFace.verts[i] -= depths[i] * refFacePlane.n;
-				}
+				// We may need to convert from local space of A to local space of B,
+				// so precompute the inverse transform of B
+				Mat4 const invTrB = glm::inverse(trB);
 
-				// Finally, generate the contact points
+				// Compute separation of each point and store them
+				Plane const refFacePlane{ .n = normalLocalA, .d = A.extents[bestFaceAxisA] };
 				for (Int32 i = 0; i < numClipVerts; ++i) {
-					if (depths[i] < epsilon) {
-						result.contacts[result.numContacts++] = Contact{
-							.position = trA * Vec4(clipFace.verts[i], 1),
-							.penetration = -depths[i]
+					Vec3 const& v = clipFace.verts[i];
+					Real const sep = SignedDistance(refFacePlane, v);
+					if (sep < 0.0) {
+						result.contacts[result.numContacts++] = CollisionConstraint{
+							v - sep * refFacePlane.n,
+							invTrB * trA * Vec4(v - refFacePlane.n * sep,1)
 						};
 					}
 				}
 			}
 		}
 
-		result.normal = rotA * normalLocalA;
+		result.normal = normalLocalA;
 
-		ASSERT(glm::epsilonEqual(glm::length2(result.normal), 1.0f, epsilon), "Invalid normal");
+		ASSERT(EpsilonEqual(glm::length2(result.normal), 1.0_r, epsilon), "Invalid normal");
 		return result;
 	}
 
@@ -678,10 +692,12 @@ namespace drb::physics {
 	{
 		Mat4 const trA = trA_ * A.Transform();
 		Mat4 const trB = trB_ * B.Transform();
-
+		Mat4 const invTrA = glm::inverse(trA);
+		Mat4 const invTrB = glm::inverse(trB);
+		
 		// Test faces of A
 		util::FaceQuery fqA = util::SATQueryFaceDirections(A, trA, B, trB);
-		if (fqA.separation > 0.0f)
+		if (fqA.separation > 0.0_r)
 		{
 			return ContactManifold{
 
@@ -692,18 +708,18 @@ namespace drb::physics {
 
 		// Test faces of B
 		util::FaceQuery fqB = util::SATQueryFaceDirections(B, trB, A, trA);
-		if (fqB.separation > 0.0f)
+		if (fqB.separation > 0.0_r)
 		{
 			return ContactManifold{
 
-				.normal = -1.0f * fqB.normal  // normal was pointing from B -> A, so flip it
+				.normal = -fqB.normal // normal was pointing from B -> A, so flip it
 
 			}; // no contacts, but track the separating normal
 		}
 
 		// Test edge pairs
 		util::EdgeQuery eq = util::SATQueryEdgeDirections(A, trA, B, trB);
-		if (eq.separation > 0.0f)
+		if (eq.separation > 0.0_r)
 		{
 			return ContactManifold{
 
@@ -719,10 +735,10 @@ namespace drb::physics {
 		// preferable to an Edge Pair when deciding what contact to generate.
 		// Since values are negative, this multiplier makes values closer
 		// to zero, therefore more preferable.
-		static constexpr Float32 linearSlop = 0.005f;
-		static constexpr Float32 relEdgeTolerance = 0.90f;
-		static constexpr Float32 relFaceTolerance = 0.98f;
-		static constexpr Float32 absTolerance = 0.5f * linearSlop;
+		static constexpr Real linearSlop = 0.005_r;
+		static constexpr Real relEdgeTolerance = 0.90_r;
+		static constexpr Real relFaceTolerance = 0.98_r;
+		static constexpr Real absTolerance = 0.5_r * linearSlop;
 
 
 		Bool const edgeContact = eq.separation > relEdgeTolerance * std::max(fqA.separation, fqB.separation) + absTolerance;
@@ -736,25 +752,23 @@ namespace drb::physics {
 			auto const edgesB = B.GetEdges();
 			auto const vertsB = B.GetVerts();
 
-			// First find closest points on the two witness edges
+			// First find closest points on the two witness edges in local space of A
 			Convex::HalfEdge const edgeA = edgesA[eq.indexA];
 			Convex::HalfEdge const twinA = edgesA[edgeA.twin];
-			Segment const edgeSegA = Segment{ .b = vertsA[edgeA.origin], .e = vertsA[twinA.origin] }.Transformed(trA);
+			Segment const edgeSegA = Segment{ .b = vertsA[edgeA.origin], .e = vertsA[twinA.origin] };
 
 			Convex::HalfEdge const edgeB = edgesB[eq.indexB];
 			Convex::HalfEdge const twinB = edgesB[edgeB.twin];
-			Segment const edgeSegB = Segment{ .b = vertsB[edgeB.origin], .e = vertsB[twinB.origin] }.Transformed(trB);
+			Segment const edgeSegB = Segment{ .b = vertsB[edgeB.origin], .e = vertsB[twinB.origin] }.Transformed(invTrA * trB);
 
 			ClosestPointsQuery closestPts = ClosestPoints(edgeSegA, edgeSegB);
 
-			// Then build the contact with position at midpoint between closest points
-			result.contacts[result.numContacts++] = Contact{
-				.position = 0.5f * (closestPts.ptA + closestPts.ptB),
-				.penetration = -eq.separation
+			// Then build the contact
+			result.contacts[result.numContacts++] = CollisionConstraint{
+				closestPts.ptA,
+				invTrB * trA * Vec4(closestPts.ptB, 1)
 			};
 			result.normal = eq.normal;
-			result.featureA = { .index = eq.indexA, .type = Feature::Type::Edge };
-			result.featureB = { .index = eq.indexB, .type = Feature::Type::Edge };
 		}
 		else
 		{
@@ -778,28 +792,28 @@ namespace drb::physics {
 		{
 			auto const* A = std::get<Sphere const*>(A_);
 			auto const* B = std::get<Sphere const*>(B_);
-			return Collide(*A, trA[3], *B, trB[3]);
+			return Collide(*A, trA, *B, trB);
 		}
 
 		static inline ContactManifold CollideSphereCapsule(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
 		{
 			auto const* A = std::get<Sphere const*>(A_);
 			auto const* B = std::get<Capsule const*>(B_);
-			return Collide(*A, trA[3], *B, trB);
+			return Collide(*A, trA, *B, trB);
 		}
 
 		static inline ContactManifold CollideSphereBox(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
 		{
 			auto const* A = std::get<Sphere const*>(A_);
 			auto const* B = std::get<Box const*>(B_);
-			return Collide(*A, trA[3], *B, trB);
+			return Collide(*A, trA, *B, trB);
 		}
 
 		static inline ContactManifold CollideSphereConvex(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
 		{
 			auto const* A = std::get<Sphere const*>(A_);
 			auto const* B = std::get<Convex const*>(B_);
-			return Collide(*A, trA[3], *B, trB);
+			return Collide(*A, trA, *B, trB);
 		}
 
 		static inline ContactManifold CollideCapsuleCapsule(ConstShapePtr A_, Mat4 const& trA, ConstShapePtr B_, Mat4 const& trB)
@@ -846,8 +860,11 @@ namespace drb::physics {
 
 		static inline void Flip(ContactManifold& m)
 		{
-			m.normal *= -1.0f;
-			std::swap(m.featureA, m.featureB);
+			std::swap(m.rbA, m.rbB);
+			m.normal *= -1.0_r;
+			for (auto&& c : m.contacts) {
+				c.Flip();
+			}
 		}
 
 
@@ -862,13 +879,13 @@ namespace drb::physics {
 
 			// Find the incident face
 			Convex::FaceID incFaceIdx = Convex::INVALID_INDEX;
-			Float32 minDotProd = std::numeric_limits<Float32>::max();
+			Real minDotProd = std::numeric_limits<Real>::max();
 			auto const incidentFaces = incident.GetFaces();
 			Int16 const numIncidentFaces = incident.NumFaces();
 			for (SizeT i = 0; i < numIncidentFaces; ++i)
 			{
-				Vec3    const n   = incidentFaces[i].plane.Transformed(incToRefLocal).n;
-				Float32 const dot = glm::dot(n, refFace.plane.n);
+				Vec3 const n   = incidentFaces[i].plane.Transformed(incToRefLocal).n;
+				Real const dot = glm::dot(n, refFace.plane.n);
 				if (dot < minDotProd)
 				{
 					minDotProd = dot;
@@ -904,11 +921,8 @@ namespace drb::physics {
 
 
 			// Reduce the manifold to at most 4 points
-			ContactManifold m = ReduceContactSet(incFacePoly, refFace.plane, refTr);
-
-			m.featureA = { .index = fq.index,   .type = Feature::Type::Face };
-			m.featureB = { .index = incFaceIdx, .type = Feature::Type::Face };
-			m.normal = Normalize(Mat3(refTr) * refFace.plane.n);
+			ContactManifold m = ReduceContactSet(incFacePoly, refFace.plane, refTr, glm::inverse(incTr));
+			m.normal = Mat3(refTr) * refFace.plane.n;
 
 			return m;
 		}
@@ -916,39 +930,42 @@ namespace drb::physics {
 
 		// Reduce the clipped and projected incident face to at most 4 contact 
 		// points. This is a bit of a process -- see D.G.'s GDC talk...
-		static ContactManifold ReduceContactSet(Polygon& incFacePoly, Plane const& refFacePlane, Mat4 const& refTr)
+		static ContactManifold ReduceContactSet(Polygon& incFacePoly, Plane const& refFacePlane, Mat4 const& refTr, Mat4 const& invIncTr)
 		{
 			ContactManifold m{};
+
+			Mat4 const refToInc = invIncTr * refTr;
 
 			// Possible that clipping has removed ALL points...
 			Int32 const numCandidates = static_cast<Int32>(incFacePoly.verts.size());
 			if (numCandidates <= 0) { return m; }
 
 			static constexpr Uint32 maxCandidates = 64;
-			ASSERT(numCandidates < maxCandidates, "Too many potential contacts. You probably want to reduce the complexity of your collision geometry.");
+			if (numCandidates > maxCandidates) {
+				ASSERT(false, "Too many potential contacts. You probably want to reduce the complexity of your collision geometry.");
+				return m;
+			}
 
-			// First, project contact points onto reference face, and identify the deepest 
-			// point (which is needed for CCD) -- this will be our first contact point
-			Float32 depths[maxCandidates] = {};
+			// First, identify the deepest penetrating point (which is needed for CCD) -- this will be our first contact point
+			Real depths[maxCandidates] = {};
 			Uint32  p0Idx = 0;
-			Float32 deepest = std::numeric_limits<Float32>::max();
+			Real deepest = std::numeric_limits<Real>::max();
 			for (Int32 i = 0; i < numCandidates; ++i) {
 
-				Float32 const depth = SignedDistance(refFacePlane, incFacePoly.verts[i]);
+				Real const depth = SignedDistance(refFacePlane, incFacePoly.verts[i]);
 				if (depth < deepest)
 				{
 					deepest = depth;
 					p0Idx = i;
 				}
 
-				// Save the depth then project onto ref face
+				// Save the depth
 				depths[i] = depth;
-				incFacePoly.verts[i] -= depth * refFacePlane.n;
 			}
 			Vec3 const p0 = incFacePoly.verts[p0Idx];
-			m.contacts[m.numContacts++] = Contact{
-				.position = refTr * Vec4(p0, 1.0f),
-				.penetration = -deepest
+			m.contacts[m.numContacts++] = CollisionConstraint{
+				p0 - refFacePlane.n * depths[p0Idx],
+				refToInc * Vec4(p0, 1.0_r)
 			};
 
 			// If we already only have at most 4 contacts, just make the 
@@ -959,9 +976,9 @@ namespace drb::physics {
 				Uint32 curr = (p0Idx + 1) % N;
 				while (curr != p0Idx)
 				{
-					m.contacts[m.numContacts++] = Contact{
-						.position = refTr * Vec4(incFacePoly.verts[curr], 1.0f),
-						.penetration = -depths[curr]
+					m.contacts[m.numContacts++] = CollisionConstraint{
+						incFacePoly.verts[curr] - refFacePlane.n * depths[curr],
+						refToInc * Vec4(incFacePoly.verts[curr], 1.0_r),
 					};
 
 					curr++;
@@ -975,13 +992,13 @@ namespace drb::physics {
 			// to p0 (in order to prevent p0->p1 from being on the edge of
 			// manifold -- this is needed to effectively find points 3 and 4).
 			Int32   p1Idx = -1;
-			Float32 furthest = std::numeric_limits<Float32>::lowest();
+			Real furthest = std::numeric_limits<Real>::lowest();
 
 			Int32 const end = (p0Idx - 1 + numCandidates) % numCandidates; // previous vert adjacent to p0
 			Int32       curr = (p0Idx + 1) % numCandidates;				   // next vert adjacent to p0
 			while (curr != end)
 			{
-				Float32 const dist2 = glm::distance2(p0, incFacePoly.verts[curr]);
+				Real const dist2 = glm::distance2(p0, incFacePoly.verts[curr]);
 				if (dist2 > furthest)
 				{
 					furthest = dist2;
@@ -995,9 +1012,9 @@ namespace drb::physics {
 			if (p1Idx < 0) { return m; }
 			//ASSERT(p1Idx >= 0, "Invalid index");
 			Vec3 const p1 = incFacePoly.verts[p1Idx];
-			m.contacts[m.numContacts++] = Contact{
-				.position = refTr * Vec4(p1, 1.0f),
-				.penetration = -depths[p1Idx]
+			m.contacts[m.numContacts++] = CollisionConstraint{
+				p1 - refFacePlane.n * depths[p1Idx],
+				refToInc * Vec4(p1, 1.0_r),
 			};
 
 			// 3rd and 4th points are tricky! We want to maximize the manifold
@@ -1006,14 +1023,14 @@ namespace drb::physics {
 			// For point 3, look for a point on the side of line p0->p1 that gives
 			// us the maximal triangle area.
 			Int32   p2Idx = -1;
-			Float32 maxTriArea = 0.0f;
+			Real maxTriArea = 0.0_r;
 			for (Int32 i = 0; i < numCandidates; ++i)
 			{
 				if (i == p0Idx || i == p1Idx) { continue; }
 
 				Vec3 const u = p0 - incFacePoly.verts[i];
 				Vec3 const v = p1 - incFacePoly.verts[i];
-				Float32 const area = glm::dot(glm::cross(u, v), refFacePlane.n);
+				Real const area = glm::dot(glm::cross(u, v), refFacePlane.n);
 				if (area > maxTriArea)
 				{
 					maxTriArea = area;
@@ -1024,9 +1041,9 @@ namespace drb::physics {
 			if (p2Idx < 0) { return m; }
 			//ASSERT(p2Idx >= 0, "Invalid index");
 			Vec3 const p2 = incFacePoly.verts[p2Idx];
-			m.contacts[m.numContacts++] = Contact{
-				.position = refTr * Vec4(p2, 1.0f),
-				.penetration = -depths[p2Idx]
+			m.contacts[m.numContacts++] = CollisionConstraint{
+				p2 - refFacePlane.n * depths[p2Idx],
+				refToInc * Vec4(p2, 1.0_r),
 			};
 
 
@@ -1036,7 +1053,7 @@ namespace drb::physics {
 			// negative area when a triangle is formed with a pair of 
 			// our current points
 			Int32   p3Idx = -1;
-			Float32 minTriArea = 0.0f;
+			Real minTriArea = 0.0_r;
 			for (Int32 i = 0; i < numCandidates; ++i)
 			{
 				if (i == p0Idx || i == p1Idx || i == p2Idx) { continue; }
@@ -1046,7 +1063,7 @@ namespace drb::physics {
 				Vec3 const w = p2 - incFacePoly.verts[i];
 
 				// Test triangle p0p1p3
-				Float32 area = glm::dot(glm::cross(u, v), refFacePlane.n);
+				Real area = glm::dot(glm::cross(u, v), refFacePlane.n);
 				if (area < minTriArea)
 				{
 					minTriArea = area;
@@ -1073,9 +1090,9 @@ namespace drb::physics {
 			if (p3Idx < 0) { return m; }
 			//ASSERT(p3Idx >= 0, "Invalid index");
 			Vec3 const p3 = incFacePoly.verts[p3Idx];
-			m.contacts[m.numContacts++] = Contact{
-				.position = refTr * Vec4(p3, 1.0f),
-				.penetration = -depths[p3Idx]
+			m.contacts[m.numContacts++] = CollisionConstraint{
+				p3 - refFacePlane.n * depths[p3Idx],
+				refToInc * Vec4(p3, 1.0_r),
 			};
 
 			return m;

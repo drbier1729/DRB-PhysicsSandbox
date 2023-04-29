@@ -6,16 +6,15 @@
 
 // Pseudo-polymorphic shape interface
 #define DRB_SHAPE_INTERFACE() \
-inline Mat3 InertiaTensorAbout(Vec3 const& pt) const; \
+inline Mat3 InertiaTensorAbout(Vec3 const& pt = Vec3(0)) const; \
 inline Vec3 Position() const; \
 inline void SetPosition(Vec3 const& newPosition); \
-inline Vec3 Centroid() const; \
-inline void SetCentroid(Vec3 const& newCentroid); \
 inline Quat Orientation() const; \
 inline void SetOrientation(Quat const& newOrientation); \
+/* Returns the local->world transform matrix used for physics computations. */ \
 inline Mat4 Transform() const; \
 inline void SetTransform(Mat4 const& newTransform); \
-inline AABB Bounds(Mat4 const& worldTransform = Mat4(1)) const; \
+inline AABB Bounds(Mat4 const& worldTr = Mat4(1)) const;
 
 namespace drb::physics {
 
@@ -38,7 +37,7 @@ namespace drb::physics {
 		static constexpr auto type = ColliderType::Sphere;
 
 		Vec3    c; // world space centroid
-		Float32 r; // radius
+		Real r; // radius
 
 		DRB_SHAPE_INTERFACE();
 	};
@@ -55,24 +54,24 @@ namespace drb::physics {
 
 	private:
 		Segment seg; // world space central segment
-		Float32 h;   // half-length of central segment
+		Real h;   // half-length of central segment
 
 	public:
-		Float32 r;   // radius
+		Real r;   // radius
 
 	public:
     	Capsule() = default;
-		Capsule(Segment const& centralSeg, Float32 radius);
-		Capsule(Quat const& orientation, Vec3 pos, Float32 segmentHalfLength, Float32 radius);
-		Capsule(Mat3 const& orientation, Vec3 pos, Float32 segmentHalfLength, Float32 radius);
+		Capsule(Segment const& centralSeg, Real radius);
+		Capsule(Quat const& orientation, Vec3 pos, Real segmentHalfLength, Real radius);
+		Capsule(Mat3 const& orientation, Vec3 pos, Real segmentHalfLength, Real radius);
 
 
 		Segment const& CentralSegment() const;
-		Float32        SegmentHalfLength() const;
+		Real        SegmentHalfLength() const;
 		Vec3		   Direction() const;
 
 		void		   SetCentralSegment(Segment const& newSeg);
-		void		   SetHalfLength(Float32 h);
+		void		   SetHalfLength(Real h);
 		void		   SetDirection(Vec3 const& dir);
 
 		DRB_SHAPE_INTERFACE();
@@ -128,6 +127,8 @@ namespace drb::physics {
 	// -- each vertex, edge, and face is unique
 	// -- the hull is, indeed, a convex hull
 	// -- vertices have been sensibly "merged"
+	// The constructor will move all the provided vertices
+	// such that the centroid is located at the local origin.
 	struct Convex
 	{
 		friend struct ColliderSettings;
@@ -161,6 +162,7 @@ namespace drb::physics {
 		struct Header
 		{
 			Vec3 localCentroid;
+			// Quat localOrientation;
 
 			Int16 vertsOffset;
 			Int16 vertAdjOffset;
@@ -173,8 +175,6 @@ namespace drb::physics {
 			Int16 numFaces;
 
 			Int16 memUsed;
-
-			unsigned char pad_[4];
 		};
 
 	public:
@@ -187,10 +187,10 @@ namespace drb::physics {
 		// ------------------
 	private:
 		Header*  data = nullptr;
-		AABB     bounds{};        // in local space
+		AABB     bounds{};        // in local space (centered at origin)
 
 	public:
-		Vec3     position{};      // world space
+		Vec3     position{};      // world space centroid
 		Quat     orientation{};   // world space
 
 		// ------------------
@@ -212,8 +212,8 @@ namespace drb::physics {
 
 		~Convex() noexcept;
 
-		// Access to centroid data
-		inline Vec3		                 LocalCentroid() const;
+		// Access to original model data
+		inline Mat4		                 ModelTransform() const;
 
 		// Indexed access to individual data elements
 		inline Vec3 const&               GetVert(VertID index) const;
@@ -248,6 +248,7 @@ namespace drb::physics {
 		// "Maker" static methods
 		static Convex                    MakeBox(Vec3 const& halfwidths, Mat4 const& transform = Mat4(1));
 		static Convex                    MakeTetrahedron(Vec3 const& p0, Vec3 const& p1, Vec3 const& p2, Vec3 const& p3, Mat4 const& transform = Mat4(1));
+		static Convex                    MakeQuad(Real length, Real width, Mat4 const& transform = Mat4(1));
 
 		DRB_SHAPE_INTERFACE();
 
@@ -264,11 +265,6 @@ namespace drb::physics {
 		static constexpr SizeT MAX_DATA_BYTES = Convex::MAX_SIZE * (sizeof(Vec3) + sizeof(Convex::EdgeID) + sizeof(Convex::HalfEdge) + sizeof(Convex::Face)) + sizeof(Convex::Header) + alignof(Vec3) + alignof(Convex::EdgeID) + alignof(Convex::HalfEdge) + alignof(Convex::Face) + alignof(Convex::Header);
 		static_assert(Convex::MAX_DATA_BYTES < std::numeric_limits<Int16>::max());
 	};
-
-	static_assert(sizeof(Sphere) == 16);
-	static_assert(sizeof(Capsule) == 32);
-	static_assert(sizeof(Box) == 64);
-	static_assert(sizeof(Convex) == 64);
 
 	// -------------------------------------------------------------------------
 	// Concepts
@@ -307,7 +303,7 @@ namespace drb::physics {
 
 		SizeT        index = 0;
 		ColliderType type = ColliderType::NONE;
-		Float32	     relativeMass = 0.0f;
+		Real	     relativeMass = 0.0;
 		Vec3		 centroid = {};
 	};
 
@@ -318,9 +314,9 @@ namespace drb::physics {
 	struct CollisionGeometry : public std::enable_shared_from_this<CollisionGeometry>
 	{
 		friend class World;
-		#ifdef _DEBUG
+		// DEBUG BEGIN
 		friend class DebugRenderer;
-		#endif
+		// DEBUG END
 
 	private:
 		std::vector<Sphere>			  spheres{};
@@ -329,18 +325,18 @@ namespace drb::physics {
 		std::vector<Convex>			  hulls{};
 		std::vector<ColliderSettings> settings{};
 
-		Mat3    invInertia{0.0f};
-		Float32 invMass{ 0.0f };
-		Vec3    centerOfMass{ 0.0f }; // in local space
-		AABB    bounds{};
-		Bool    locked = false;
+		Mat3 invInertia{0.0};
+		Real invMass{ 0.0 };
+		Vec3 centerOfMass{ 0.0 }; // in local space
+		AABB bounds{};
+		Bool locked = false;
 
 	public:		
 		// Accessors
 		void               ForEachCollider(ConstShapeFn auto&& fn) const;
 					      
 		inline Mat3 const& InverseInertia() const;
-		inline Float32     InverseMass() const;
+		inline Real        InverseMass() const;
 		inline Vec3 const& CenterOfMass() const;
 		inline AABB const& Bounds() const;
 		inline SizeT       Size() const;
@@ -348,12 +344,12 @@ namespace drb::physics {
 		// Manipulators
 		inline void        Reserve(SizeT newCapacities);
 
-		CollisionGeometry& AddCollider(Shape auto const& collider, Float32 mass = 0.0f);
-		CollisionGeometry& AddCollider(Shape auto && collider, Float32 mass = 0.0f);
+		CollisionGeometry& AddCollider(Shape auto const& collider, Real mass = 0.0);
+		CollisionGeometry& AddCollider(Shape auto && collider, Real mass = 0.0);
 		void			   Bake(); // Must be called after all colliders have been added
 
 	private:
-		void ForEachCollider(ShapeFn auto&& fn);
+		void			   ForEachCollider(ShapeFn auto&& fn);
 	};
 	
 }

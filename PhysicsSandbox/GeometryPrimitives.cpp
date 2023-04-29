@@ -3,6 +3,7 @@
 
 #include "Math.h"
 #include "GeometryPrimitiveQueries.h"
+#include "DRBAssert.h"
 
 namespace drb::physics {
 
@@ -13,9 +14,8 @@ namespace drb::physics {
 		
 	Plane Plane::Make(Vec3 const& p0, Vec3 const& p1, Vec3 const& p2)
 	{
-		Vec3 const a = Normalize(p1 - p0), b = Normalize(p2 - p0);
-		
-		Vec3 const n = glm::cross(a, b);
+		Vec3 const a = p1 - p0, b = p2 - p0;
+		Vec3 const n = Normalize( glm::cross(a, b) );
 		
 		return Plane::Make(n, p0);
 	}
@@ -47,8 +47,6 @@ namespace drb::physics {
 		return MovedTo(p + displacement);
 	}
 
-
-
 	// See Ericson 8.3.4 (Sutherland-Hodgman clipping with fat planes)
 	void Polygon::Split(Plane const& plane, Polygon& front, Polygon& back)
 	{
@@ -73,7 +71,7 @@ namespace drb::physics {
 					// Edge (a, b) straddles, output intersection point to both sides
 					// Consistently clip edge as ordered going from in front -> back
 					Vec3 i{};
-					Float32 t{};
+					Real t{};
 					Intersect(Segment{ .b = b, .e = a }, plane, t, i);
 
 					ASSERT(Classify(plane, i) == Side::On, "Intersection point must be on plane");
@@ -90,7 +88,7 @@ namespace drb::physics {
 				{
 					// Edge (a, b) straddles plane, output intersection point
 					Vec3 i{};
-					Float32 t{};
+					Real t{};
 					Intersect(Segment{ .b = a, .e = b }, plane, t, i);
 
 					ASSERT(Classify(plane, i) == Side::On, "Intersection point must be on plane");
@@ -127,8 +125,8 @@ namespace drb::physics {
 	Segment Segment::Transformed(Mat4 const& transform) const
 	{
 		return Segment{
-			.b = transform * Vec4(b, 1.0f),
-			.e = transform * Vec4(e, 1.0f)
+			.b = transform * Vec4(b, 1.0),
+			.e = transform * Vec4(e, 1.0)
 		};
 	}
 
@@ -137,12 +135,12 @@ namespace drb::physics {
 		return e - b;
 	}
 
-	Float32 Segment::Length() const
+	Real Segment::Length() const
 	{
 		return glm::length(e - b);
 	}
 	
-	Float32 Segment::Length2() const
+	Real Segment::Length2() const
 	{
 		return glm::length2(e - b);
 	}

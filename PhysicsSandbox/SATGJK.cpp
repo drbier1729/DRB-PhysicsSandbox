@@ -2,6 +2,7 @@
 #include "SATGJK.h"
 
 #include "Math.h"
+#include "DRBAssert.h"
 
 namespace drb::physics::util {
 	
@@ -11,8 +12,8 @@ namespace drb::physics::util {
 	
 	struct CvxSupport
 	{
-		Vec3           pt   = {};
-		Float32        proj = std::numeric_limits<Float32>::lowest();
+		Vec3        pt   = {};
+		Real        proj = std::numeric_limits<Real>::lowest();
 		Convex::EdgeID e    = Convex::INVALID_INDEX;
 	};
 
@@ -68,7 +69,7 @@ namespace drb::physics::util {
 	static inline CvxSupport GetSupportHillClimbing(Convex const& hull, Vec3 const& dir, Convex::EdgeID startHint = 0);
 	
 	// Does some Dirk Gregorius magic -- see his GDC talk on SAT
-	static inline Float32 Project(const Vec3& p1, const Vec3& e1, const Vec3& p2, const Vec3& e2, const Vec3& c1, Vec3& out_normal);
+	static inline Real Project(const Vec3& p1, const Vec3& e1, const Vec3& p2, const Vec3& e2, const Vec3& c1, Vec3& out_normal);
 	
 	// Checks whether edges defined by a->b and c->d form a face on the Minkowski difference of their respective
 	// convex hulls
@@ -89,7 +90,7 @@ namespace drb::physics::util {
 	// -------------------------------------------------------------------------
 
 	// axis pointing from A->B in world space
-	Float32	  SeparationOnAxis(Vec3 const& axis, Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
+	Real	  SeparationOnAxis(Vec3 const& axis, Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB)
 	{
 		Vec3 const axisLocalA = glm::inverse(Mat3(trA)) * axis;
 		Vec3 const axisLocalB = glm::inverse(Mat3(trB)) * axis;
@@ -115,7 +116,7 @@ namespace drb::physics::util {
 			Plane const p = facesA[i].plane.Transformed(transform);
 
 			auto const [support, proj, eID] = GetSupport(B, -p.n);
-			Float32 const separation = (-proj) - p.d;
+			Real const separation = (-proj) - p.d;
 			if (separation > result.separation)
 			{
 				result.index = i;
@@ -177,7 +178,7 @@ namespace drb::physics::util {
 				if (IsMinkowskiFace(uA, vA, -eA, -uB, -vB, -eB))
 				{
 					Vec3 normal{};
-					Float32 const separation = Project(eSegA.b, eA, eSegB.b, eB, cA, normal);
+					Real const separation = Project(eSegA.b, eA, eSegB.b, eB, cA, normal);
 					if (separation > result.separation)
 					{
 						result.indexA = i;
@@ -203,8 +204,8 @@ namespace drb::physics::util {
 		ASSERT(B.NumVerts() > 0, "Hull must be non empty");
 
 		// Arbitrary -- could be set externally if we want
-		static constexpr Float32 tol = 1.0e-8f;
-		static constexpr Float32 tol2 = tol * tol;
+		static constexpr Real tol = 1.0e-8_r;
+		static constexpr Real tol2 = tol * tol;
 
 		// If we were provided with a seed, we can operate on that simplex, 
 		// otherwise we'll just use a local one
@@ -220,7 +221,7 @@ namespace drb::physics::util {
 		// initialize our simplex
 		if (simplex.GetType() == Simplex::Type::NONE)
 		{
-			simplex.lambdas[0] = 1.0f;
+			simplex.lambdas[0] = 1.0_r;
 			simplex.bestA = 0;
 			simplex.bestB = 0;
 
@@ -240,20 +241,20 @@ namespace drb::physics::util {
 		}
 
 		// Check for 1 degenerate case: A is at the centroid of B
-		Float32 const d2 = glm::length2(A);
-		if (EpsilonEqual(d2, 0.0f, tol))
+		Real const d2 = glm::length2(A);
+		if (EpsilonEqual(d2, 0.0_r, tol))
 		{
 			return ClosestPointsQuery{
 				.ptA = A_,
 				.ptB = trB * Vec4(B.GetVert(0), 1),
-				.d2 = -1.0f
+				.d2 = -1.0
 			};
 		}
 
 		// Values used in main loop
-		Vec3    disp    = A;
-		Vec3    oldDisp = Vec3(NAN);
-		Float32 oldD2   = std::numeric_limits<Float32>::max();
+		Vec3 disp    = A;
+		Vec3 oldDisp = Vec3(std::numeric_limits<Real>::max());
+		Real oldD2   = std::numeric_limits<Real>::max();
 
 		// supportA always == A
 		CvxSupport supportB{};		
@@ -266,7 +267,7 @@ namespace drb::physics::util {
 
 		// Main loop
 		Int16 maxIters = B.NumVerts();
-		while (maxIters-- > 0)
+		while (maxIters-->0) // lol
 		{
 			ASSERT(simplex.GetType() != Simplex::Type::NONE, "Invalid simplex");
 
@@ -277,7 +278,7 @@ namespace drb::physics::util {
 
 			// Test first exit conditions: new point is already in the simplex or 
 			// dir is invalid, indicating no intersection
-			Float32 const gVal = result.d2 - glm::dot(disp, A - supportB.pt);
+			Real const gVal = result.d2 - glm::dot(disp, A - supportB.pt);
 			if (gVal <= tol * result.d2 || gVal < tol2) { break; }
 			
 			// This is similar to the exit condition in Box2D, but seems to be
@@ -331,10 +332,10 @@ namespace drb::physics::util {
 			// Test third exit conditions: we were unable to reduce our simplex from
 			// a tetrahedron OR our d2 value is very small, indicating an intersection
 			{
-				Float32 norm2Max = std::numeric_limits<Float32>::lowest();
+				Real norm2Max = std::numeric_limits<Real>::lowest();
 				for (Uint8 i = 0; i < simplex.size; ++i)
 				{
-					Float32 const norm2 = glm::length2(A - simplex.vertsB[i]);
+					Real const norm2 = glm::length2(A - simplex.vertsB[i]);
 					if (norm2 > norm2Max)
 					{
 						norm2Max = norm2;
@@ -352,7 +353,7 @@ namespace drb::physics::util {
 		{
 			// If our objects are overlapping, this distance should not be used
 			// so mark it as a garbage negative value to indicate intersection.
-			result.d2 = -1.0f;
+			result.d2 = -1.0_r;
 		}
 
 		simplex.ComputeBarycentricCoords(disp);
@@ -370,8 +371,8 @@ namespace drb::physics::util {
 		ASSERT(B.NumVerts() > 0, "Hull must be non empty");
 
 		// Arbitrary -- could be set externally if we want
-		static constexpr Float32 tol = 1.0e-8f;
-		static constexpr Float32 tol2 = tol * tol;
+		static constexpr Real tol = 1.0e-8_r;
+		static constexpr Real tol2 = tol * tol;
 
 		// If we were provided with a seed, we can operate on that simplex, 
 		// otherwise we'll just use a local one
@@ -386,7 +387,7 @@ namespace drb::physics::util {
 		// If we didn't receive a seed, or we received an empty seed, initialize our simplex
 		if (simplex.GetType() == Simplex::Type::NONE)
 		{
-			simplex.lambdas[0] = 1.0f;
+			simplex.lambdas[0] = 1.0_r;
 			simplex.bestA = 0;
 			simplex.bestB = 0;
 
@@ -408,11 +409,11 @@ namespace drb::physics::util {
 		// Values used in main loop
 		Mat3 const invRotB = glm::transpose(Mat3(trB));
 		
-		Vec3    disp    = A.b - simplex.vertsB[0];
-		Vec3    oldDisp = disp;
-		Float32 oldD2   = std::numeric_limits<Float32>::max();
+		Vec3 disp    = A.b - simplex.vertsB[0];
+		Vec3 oldDisp = disp;
+		Real oldD2   = std::numeric_limits<Real>::max();
 
-		Float32    projA{};
+		Real       projA{};
 		Uint8	   idxA{};
 		Vec3       supportA{};
 		CvxSupport supportB{};
@@ -425,7 +426,7 @@ namespace drb::physics::util {
 
 		// Main loop
 		Int16 maxIters = B.NumVerts();
-		while (maxIters-- > 0)
+		while (maxIters-->0)
 		{
 			ASSERT(simplex.GetType() != Simplex::Type::NONE, "Invalid simplex");
 
@@ -433,7 +434,7 @@ namespace drb::physics::util {
 			projA = glm::dot(A.b, -disp);
 			idxA = 0;
 			supportA = A.b;
-			if (Float32 const tmp = glm::dot(A.e, -disp); tmp > projA)
+			if (Real const tmp = glm::dot(A.e, -disp); tmp > projA)
 			{
 				projA = tmp;
 				idxA = 1;
@@ -444,7 +445,7 @@ namespace drb::physics::util {
 
 			// Test first exit conditions: new point is already in the simplex or 
 			// dir is invalid, indicating no intersection
-			Float32 const gVal = result.d2 - glm::dot(disp, supportA - supportB.pt);
+			Real const gVal = result.d2 - glm::dot(disp, supportA - supportB.pt);
 			if (gVal <= tol * result.d2 || gVal < tol2) { 
 				break; }
 
@@ -500,10 +501,10 @@ namespace drb::physics::util {
 			// Test third exit conditions: we were unable to reduce our simplex from
 			// a tetrahedron OR our d2 value is very small, indicating an intersection
 			{
-				Float32 norm2Max = std::numeric_limits<Float32>::lowest();
+				Real norm2Max = std::numeric_limits<Real>::lowest();
 				for (Uint8 i = 0; i < simplex.size; ++i)
 				{
-					Float32 const norm2 = glm::length2(simplex.vertsA[i] - simplex.vertsB[i]);
+					Real const norm2 = glm::length2(simplex.vertsA[i] - simplex.vertsB[i]);
 					if (norm2 > norm2Max)
 					{
 						norm2Max = norm2;
@@ -521,7 +522,7 @@ namespace drb::physics::util {
 		{
 			// If our objects are overlapping, this distance should not be used
 			// so mark it as a garbage negative value to indicate intersection.
-			result.d2 = -1.0f;
+			result.d2 = -1.0_r;
 		}
 
 		simplex.ComputeBarycentricCoords(disp);
@@ -541,7 +542,7 @@ namespace drb::physics::util {
 		ASSERT(A.NumVerts() > 0 && B.NumVerts() > 0, "Hulls must be non empty");
 
 		// Arbitrary -- could be set externally if we want
-		static constexpr Float32 tolerance = 1.0e-8f;
+		static constexpr Real tolerance = 1.0e-8_r;
 
 		// If we were provided with a seed, we can operate on that simplex, 
 		// otherwise we'll just use a local one
@@ -551,7 +552,7 @@ namespace drb::physics::util {
 		// If we didn't receive a seed, or we received an empty seed, initialize our simplex
 		if (simplex.GetType() == Simplex::Type::NONE) 
 		{
-			simplex.lambdas[0] = 1.0f;
+			simplex.lambdas[0] = 1.0_r;
 			simplex.bestA = 0;
 			simplex.bestB = 0;
 
@@ -581,7 +582,7 @@ namespace drb::physics::util {
 		Vec3 const centroidB = trB[3];
 
 		Vec3      dir = centroidB - centroidA; // from A toward B
-		Float32 oldD2 = std::numeric_limits<Float32>::max();
+		Real oldD2 = std::numeric_limits<Real>::max();
 
 		CvxSupport supportA{}, supportB{};
 
@@ -602,8 +603,8 @@ namespace drb::physics::util {
 			supportB = GetSupport(B, -(invRotB * dir), simplex.bestB);
 
 			// Test first exit condition: new point is already in the simplex or dir is invalid
-			Float32 const exceedRelTol = result.d2 - (supportA.proj - supportB.proj);
-			if (result.d2 < tolerance || EpsilonEqual(exceedRelTol, 0.0f, tolerance)) { break; }
+			Real const exceedRelTol = result.d2 - (supportA.proj - supportB.proj);
+			if (result.d2 < tolerance || EpsilonEqual(exceedRelTol, 0.0_r, tolerance)) { break; }
 
 			// Push new point to the simplex
 			simplex.bestA = supportA.e;
@@ -622,7 +623,7 @@ namespace drb::physics::util {
 
 			// Test second exit condition: we were unable to reduce our simplex from
 			// a tetrahedron OR our d2 value is very small, indicating an intersection
-			if (simplex.size == 4 || EpsilonEqual(result.d2, 0.0f, tolerance))
+			if (simplex.size == 4 || EpsilonEqual(result.d2, 0.0_r, tolerance))
 			{
 				simplex.containsOrigin = true;
 				break;
@@ -641,7 +642,7 @@ namespace drb::physics::util {
 		{
 			// If our objects are overlapping, this distance should not be used
 			// so mark it as a garbage negative value to indicate intersection.
-			result.d2 = -1.0f;
+			result.d2 = -1.0;
 		}
 
 		return result;
@@ -661,7 +662,7 @@ namespace drb::physics::util {
 		{
 		break; case 1:
 		{
-			lambdas[0] = 1.0f;
+			lambdas[0] = 1.0_r;
 		}
 		break; case 2:
 		{
@@ -671,10 +672,10 @@ namespace drb::physics::util {
 			Vec3 const s1 = vertsA[1] - vertsB[1];
 
 			Uint8 x = 0;
-			Float32 maxLength = 0.0f;
+			Real maxLength = 0.0;
 			for (Uint8 i = 0; i < 3; ++i)
 			{
-				Float32 const len = s0[i] - s1[i];
+				Real const len = s0[i] - s1[i];
 				if (glm::abs(len) > glm::abs(maxLength))
 				{
 					maxLength = len;
@@ -694,12 +695,12 @@ namespace drb::physics::util {
 			Vec3 const s1 = vertsA[1] - vertsB[1];
 			Vec3 const s2 = vertsA[2] - vertsB[2];
 
-			Float32 maxArea = 0.0f;
+			Real maxArea = 0.0_r;
 			Uint8 x = 0, y = 1;
 			Uint8 j = 1, k = 2;
 			for (Uint8 i = 0; i < 3; ++i)
 			{
-				Float32 const area = s0[j] * s1[k] - s1[j] * s0[k]
+				Real const area = s0[j] * s1[k] - s1[j] * s0[k]
 								   + s1[j] * s2[k] - s2[j] * s1[k]
 					  			   + s2[j] * s0[k] - s0[j] * s2[k];
 				if (glm::abs(area) > glm::abs(maxArea))
@@ -721,7 +722,7 @@ namespace drb::physics::util {
 			Vec3 const dispProj = Vec3(disp[x], disp[y], 1);
 
 			// Solve M * l = p
-			lambdas = Vec4(glm::inverse(M) * dispProj, 0.0f);
+			lambdas = Vec4(glm::inverse(M) * dispProj, 0.0_r);
 		}
 		break; case 4:
 		{
@@ -755,12 +756,12 @@ namespace drb::physics::util {
 		// Else: use brute force
 
 		Convex::VertID bestVert = Convex::INVALID_INDEX;
-		Float32 maxProjection   = std::numeric_limits<Float32>::lowest();	
+		Real maxProjection   = std::numeric_limits<Real>::lowest();	
 		Convex::VertID current  = 0;
 		auto const verts = hull.GetVerts();
 		for (auto && v : verts)
 		{
-			Float32 const projection = glm::dot(dir, v);
+			Real const projection = glm::dot(dir, v);
 			if (projection > maxProjection)
 			{
 				bestVert = current;
@@ -787,7 +788,7 @@ namespace drb::physics::util {
 		//	-> Inspect all neighbor vertices of e.origin
 		//	-> Move to the neighbor whose projection onto dir is maximal, or exit if none found
 		
-		Float32 maxProj = std::numeric_limits<Float32>::lowest();
+		Real maxProj = std::numeric_limits<Real>::lowest();
 		Convex::VertID lastVisitedVertex = Convex::INVALID_INDEX;
 
 		Bool found = true;
@@ -800,7 +801,7 @@ namespace drb::physics::util {
 					if (neighbor.origin != lastVisitedVertex)
 					{
 						Vec3 const    v = hull.GetVert(neighbor.origin);
-						Float32 const proj = glm::dot(dir, v);
+						Real const proj = glm::dot(dir, v);
 
 						if (proj > maxProj)
 						{
@@ -831,7 +832,7 @@ namespace drb::physics::util {
 
 
 	// This function is used only within SATQueryEdgeDirections
-	static inline Float32 Project(Vec3 const& p1, Vec3 const& e1,
+	static inline Real Project(Vec3 const& p1, Vec3 const& e1,
 		Vec3 const& p2, Vec3 const& e2,
 		Vec3 const& c1,
 		Vec3& outNormal)
@@ -840,17 +841,17 @@ namespace drb::physics::util {
 		Vec3 const e1_x_e2 = glm::cross(e1, e2);
 
 		// Skip near parallel edges: |e1 x e2| = sin(alpha) * |e1| * |e2|
-		static constexpr Float32 k_tolerance = 0.005f;
-		Float32 const L = glm::length(e1_x_e2);
+		static constexpr Real k_tolerance = 0.005_r;
+		Real const L = glm::length(e1_x_e2);
 		if (L < k_tolerance * glm::sqrt(glm::length2(e1) * glm::length2(e2))) {
-			outNormal = Vec3(NAN);
-			return std::numeric_limits<Float32>::lowest();
+			outNormal = Vec3(std::numeric_limits<Real>::max());
+			return std::numeric_limits<Real>::lowest();
 		}
 
 		// Ensure consistent normal orientation (A -> B)
 		outNormal = e1_x_e2 / L;
-		if (glm::dot(outNormal, p1 - c1) < 0.0f) {
-			outNormal *= -1.0f;
+		if (glm::dot(outNormal, p1 - c1) < 0.0_r) {
+			outNormal *= -1.0_r;
 		}
 
 		// s = Dot(n, p2) - d = Dot(n, p2) - Dot(n, p1) = Dot(n, p2 - p1) 
@@ -865,12 +866,12 @@ namespace drb::physics::util {
 		Vec3 const& d_x_c)
 	{
 		// Test if arcs AB and CD intersect on the unit sphere 
-		Float32 const CBA = glm::dot(c, b_x_a);
-		Float32 const DBA = glm::dot(d, b_x_a);
-		Float32 const ADC = glm::dot(a, d_x_c);
-		Float32 const BDC = glm::dot(b, d_x_c);
+		Real const CBA = glm::dot(c, b_x_a);
+		Real const DBA = glm::dot(d, b_x_a);
+		Real const ADC = glm::dot(a, d_x_c);
+		Real const BDC = glm::dot(b, d_x_c);
 
-		return CBA * DBA < 0.0f && ADC * BDC < 0.0f && CBA * BDC > 0.0f;
+		return CBA * DBA < 0.0_r && ADC * BDC < 0.0_r && CBA * BDC > 0.0_r;
 	}
 
 	SimplexSolver::SimplexSolver(Simplex& s, Vec3& d)
@@ -1038,8 +1039,8 @@ namespace drb::physics::util {
 		}
 		else
 		{
-			Float32 const det023 = glm::determinant(Mat3(edge02, edge03, edge01));
-			Bool const det023Pos = (det023 > 0.0f);
+			Real const det023 = glm::determinant(Mat3(edge02, edge03, edge01));
+			Bool const det023Pos = (det023 > 0.0);
 
 			Bool const testPlane023 = ( Discard3D(s0, s2, s3) == det023Pos );
 			Bool const testPlane031 = ( Discard3D(s0, s3, s1) == det023Pos );
@@ -1390,7 +1391,7 @@ namespace drb::physics::util {
 	static inline Bool OriginInFrontOfFace(Vec3 const& p, Vec3 const& q, Vec3 const& r)
 	{
 		Vec3 const n = glm::cross(q - p, r - p);
-		return glm::dot(p, n) < 0.0f;
+		return glm::dot(p, n) < 0.0_r;
 	}
 
     // Returns true if the origin is "in front of" the edge pq of 
@@ -1399,27 +1400,27 @@ namespace drb::physics::util {
 	{
 		Vec3 const pq = q - p;
 		Vec3 const n = TripleProduct(pq, pq, r - p);
-		return glm::dot(p, n) < 0.0f;
+		return glm::dot(p, n) < 0.0_r;
 	}
 
     // Returns true if origin is "in front of" the segment pq
     // (in the direction of pq)
 	static inline Bool OriginInFrontOfVert(Vec3 const& p, Vec3 const& q)
 	{
-		return glm::dot(p, q - p) < 0.0f;
+		return glm::dot(p, q - p) < 0.0_r;
 	}
 
 	static inline Vec3 ProjectOriginOnLine(Vec3 const& p, Vec3 const& q)
 	{
 		Vec3 const qp = p - q;
-		Float32 const t = glm::dot(p, qp) / glm::length2(qp);
+		Real const t = glm::dot(p, qp) / glm::length2(qp);
 		return p - qp * t;
 	}
 
 	static inline Vec3 ProjectOriginOnPlane(Vec3 const& p, Vec3 const& q, Vec3 const& r)
 	{
 		Vec3 const n = glm::cross(p - q, p - r);	
-		Float32 const t = glm::dot(n, p) / glm::length2(n);
+		Real const t = glm::dot(n, p) / glm::length2(n);
 		return n * t;
 	}
 }

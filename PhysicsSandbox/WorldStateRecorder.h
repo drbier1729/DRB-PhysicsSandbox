@@ -34,9 +34,8 @@ namespace drb {
 			template<class T>
 			using CircularBuffer = std::vector<std::vector<T>>;
 			
-
 			CircularBuffer<RigidBodyState> rbStates{};
-			Uint32 top = 0, current = 0;
+			Int32 top = 0, current = 0, numFrames = 1;
 
 			World* world = nullptr;
 

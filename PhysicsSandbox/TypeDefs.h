@@ -18,15 +18,17 @@ namespace drb {
 
 	using Float32 = float;
 	using Float64 = double;
+	using Real = Float32;
 
-	using Vec2 = glm::vec2;
-	using Vec3 = glm::vec3;
-	using Vec4 = glm::vec4;
-	using Mat3 = glm::mat3;
-	using Mat4 = glm::mat4;
-	using Quat = glm::quat;
+	using Vec2 = glm::tvec2<Real, glm::highp>;
+	using Vec3 = glm::tvec3<Real, glm::highp>;
+	using Vec4 = glm::tvec4<Real, glm::highp>;
+	using Mat3 = glm::tmat3x3<Real, glm::highp>;
+	using Mat4 = glm::tmat4x4<Real, glm::highp>;
+	using Quat = glm::tquat<Real, glm::highp>;
 
-#define ASSERT(exp, msg) assert((exp) && (msg))
+	consteval Real operator ""_r(long double x) noexcept {
+		return static_cast<Real>(x);
+	}
 }
-
 #endif

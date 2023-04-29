@@ -55,13 +55,12 @@ This notice may not be removed or altered from any source distribution.
 #include <memory>
 #include <array>
 
+#include "DRBAssert.h"
+
 #ifndef _ENABLE_EXTENDED_ALIGNED_STORAGE
 #define _ENABLE_EXTENDED_ALIGNED_STORAGE
 #endif 
 
-#ifndef assert
-#include <cassert>
-#endif
 
 template<class T, std::size_t N>
 class FixedObjectPool
@@ -179,7 +178,7 @@ public:
 
 	[[nodiscard]]
 	pointer insert(const_reference val) {
-		assert(total_size < N);
+		ASSERT(total_size < N, "Container is full");
 
 		pointer construct_address = nullptr;
 
@@ -215,7 +214,7 @@ public:
 			skipfield_type right = (curr_index == N - 1) ? 0 : *(skip_ptr + 1);
 
 			if (left != 0) [[unlikely]] {
-				assert(false && "We're in the middle or at the end of a skipblock!");
+				ASSERT(false, "We're in the middle or at the end of a skipblock!");
 			}
 			else {
 				if (right != 0) {
@@ -273,7 +272,7 @@ public:
 
 	[[nodiscard]]
 	pointer insert(xvalue_reference val = value_type{}) {
-		assert(total_size < N);
+		ASSERT(total_size < N, "Container is full.");
 
 		pointer construct_address = nullptr;
 
@@ -309,7 +308,7 @@ public:
 			skipfield_type right = (curr_index == N - 1) ? 0 : *(skip_ptr + 1);
 
 			if (left != 0) [[unlikely]] {
-				assert(false && "We're in the middle or at the end of a skipblock!");
+				ASSERT(false, "We're in the middle or at the end of a skipblock!");
 			}
 			else {
 				if (right != 0) {
@@ -368,7 +367,7 @@ public:
 	template<class ... Args>
 	[[nodiscard]]
 	pointer emplace(Args&& ... args) {
-		assert(total_size < N);
+		ASSERT(total_size < N, "Container is full.");
 
 		pointer construct_address = nullptr;
 
@@ -404,7 +403,7 @@ public:
 			skipfield_type right = (curr_index == N - 1) ? 0 : *(skip_ptr + 1);
 
 			if (left != 0) [[unlikely]] {
-				assert(false && "We're in the middle or at the end of a skipblock!");
+				ASSERT(false, "We're in the middle or at the end of a skipblock!");
 			}
 			else {
 				if (right != 0) {
@@ -462,9 +461,9 @@ public:
 
 	// Returns ptr to next valid element, or nullptr if at end
 	pointer erase(pointer p_val) {
-		assert(p_val != nullptr);
-		assert(p_val >= convert_ptr<pointer>(elements.data()));
-		assert(p_val < convert_ptr<pointer>(elements.data() + N));
+		ASSERT(p_val != nullptr, "Pointer was null.");
+		ASSERT(p_val >= convert_ptr<pointer>(elements.data()), "Pointer pointer before container beginning.");
+		ASSERT(p_val < convert_ptr<pointer>(elements.data() + N), "Pointer pointer after container end.");
 
 		// Index of return value
 		skipfield_type next = N;
@@ -770,12 +769,12 @@ public:
 		}
 
 		reference front() {
-			assert(!is_empty());
+			ASSERT(!is_empty(), "Container is empty.");
 			return *elem_ptr;
 		}
 
 		void pop_front() {
-			assert(!is_empty());
+			ASSERT(!is_empty(), "Container is empty.");
 
 			// Read the next skip and increment skip ptr
 			skipfield_type skip = *(++skip_ptr);

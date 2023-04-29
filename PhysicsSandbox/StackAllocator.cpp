@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "StackAllocator.h"
 
+#include "DRBAssert.h"
+
 namespace drb
 {
 	StackAllocator::StackAllocator(void* arena_, SizeT capacity_)

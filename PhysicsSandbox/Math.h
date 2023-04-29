@@ -6,6 +6,9 @@ namespace drb {
 		inline constexpr Int32 Sign(std::floating_point auto x) { return (x < 0) ? -1 : 1; }
 		inline constexpr Int32 Sign(std::integral auto x) { return (x < 0) ? -1 : 1; }
 
+		template<typename Num> requires requires (Num n) { n * -1; }
+		inline constexpr auto NegativeIf(Bool predicate, Num&& x) { return (1 - 2 * predicate) * x; }
+		
 		inline constexpr Bool CompareSigns(std::floating_point auto x, std::floating_point auto y)
 		{
 			return (x > 0 && y > 0) || (x < 0 && y < 0);
@@ -22,14 +25,14 @@ namespace drb {
 			return glm::abs(a - b) <= std::max({ glm::abs(a), glm::abs(b), 1.0 }) * glm::sqrt(epsilon);
 		}
 
-		inline Bool EpsilonEqual(Vec3 const& a, Vec3 const& b, float epsilon = std::numeric_limits<float>::epsilon())
+		inline Bool EpsilonEqual(Vec3 const& a, Vec3 const& b, Real epsilon = std::numeric_limits<Real>::epsilon())
 		{
 			return EpsilonEqual(a.x, b.x, epsilon) &&
 				   EpsilonEqual(a.y, b.y, epsilon) &&
 				   EpsilonEqual(a.z, b.z, epsilon);
 		}
 
-		inline Bool EpsilonEqual(Vec4 const& a, Vec4 const& b, float epsilon = std::numeric_limits<float>::epsilon())
+		inline Bool EpsilonEqual(Vec4 const& a, Vec4 const& b, Real epsilon = std::numeric_limits<Real>::epsilon())
 		{
 			return EpsilonEqual(a.x, b.x, epsilon) &&
 				   EpsilonEqual(a.y, b.y, epsilon) &&
@@ -37,7 +40,7 @@ namespace drb {
 				   EpsilonEqual(a.w, b.w, epsilon);
 		}
 		
-		inline Bool EpsilonEqual(Quat const& a, Quat const& b, float epsilon = std::numeric_limits<float>::epsilon())
+		inline Bool EpsilonEqual(Quat const& a, Quat const& b, Real epsilon = std::numeric_limits<Real>::epsilon())
 		{
 			return EpsilonEqual(a.x, b.x, epsilon) &&
 				   EpsilonEqual(a.y, b.y, epsilon) &&
@@ -48,31 +51,41 @@ namespace drb {
 		inline Vec3 Normalize(Vec3 const& v) {
 			Vec3 const normalized = glm::normalize(v);
 
-			if (glm::any(glm::isnan(normalized)))
-			{
-				ASSERT(false, "Tried to normalize an invalid vector");
+			if (glm::any(glm::isnan(normalized))) {
 				return Vec3(0);
 			}
 			return normalized;
 		}
 		
+		// May return Vec3(NAN) if magnitude was zero
+		inline std::pair<Vec3, Real> GetNormalizedAndMagnitude(Vec3 const& v) {
+			
+			Real const mag = glm::length(v);
+			return { v * 1.0_r / mag, mag};
+		}
+
 		inline Vec4 Normalize(Vec4 const& v) {
 			Vec4 const normalized = glm::normalize(v);
 
-			if (glm::any(glm::isnan(normalized)))
-			{
-				ASSERT(false, "Tried to normalize an invalid vector");
+			if (glm::any(glm::isnan(normalized))) {
 				return Vec4(0);
 			}
 			return normalized;
 		}
+
+		// May return Vec4(NAN) if magnitude was zero
+		inline std::pair<Vec4, Real> GetNormalizedAndMagnitude(Vec4 const& v) {
+
+			Real const mag = glm::length(v);
+			return { v * 1.0_r / mag, mag };
+		}
+
 		
 		inline Quat Normalize(Quat const& q) {
 			Quat const normalized = glm::normalize(q);
 			
 			if (glm::any(glm::isnan(normalized))) {
-				ASSERT(false, "Tried to normalize a zero quaternion");
-				return Quat(1.0f, 0.0f, 0.0f, 0.0f);
+				return Quat(1.0, 0.0, 0.0, 0.0);
 			}
 
 			return normalized;
@@ -80,8 +93,8 @@ namespace drb {
 
 		inline Vec3 AnyUnitOrthogonalTo(Vec3 const& src) {	
 			Vec3 other{};
-			if (not EpsilonEqual(src.y, 0.0f) ||
-				not EpsilonEqual(src.z, 0.0f)) {
+			if (not EpsilonEqual(src.y, 0.0_r) ||
+				not EpsilonEqual(src.z, 0.0_r)) {
 				other = Vec3(1, 0, 0);
 			}
 			else {
@@ -96,8 +109,9 @@ namespace drb {
 		}
 
 		inline Mat3 UnitVectorToBasis3(Vec3 const& v) {
-			ASSERT(EpsilonEqual(glm::length2(v), 1.0f), "v must be a unit vector");
-
+			if (not EpsilonEqual(glm::length2(v), 1.0_r)) {
+				return Mat3(0);
+			}
 			Vec3 const axis1 = AnyUnitOrthogonalTo(v);
 			Vec3 const axis2 = glm::cross(v, axis1);
 
@@ -109,7 +123,9 @@ namespace drb {
 		}
 		
 		inline Mat4 UnitVectorToBasis4(Vec3 const& v) {
-			ASSERT(EpsilonEqual(glm::length2(v), 1.0f), "v must be a unit vector");
+			if (not EpsilonEqual(glm::length2(v), 1.0_r)) {
+				return Mat4(0);
+			}
 
 			Vec3 const axis1 = AnyUnitOrthogonalTo(v);
 			Vec3 const axis2 = glm::cross(v, axis1);

@@ -5,16 +5,18 @@ namespace drb {
 
 		inline Bool AABB::Intersects(AABB const& other) const
 		{
-			/*if (max.x < other.min.x || other.max.x < min.x) { return false; }
-			if (max.y < other.min.y || other.max.y < min.y) { return false; }
-			if (max.z < other.min.z || other.max.z < min.z) { return false; }
-			return true;*/
-			
-			return not ( glm::any(glm::lessThan(max, other.min)) ||
-				         glm::any(glm::lessThan(other.max, min)) );
+			return glm::all(
+					glm::lessThanEqual(
+							glm::abs(c - other.c),
+							e + other.e
+						)
+					);
+
+			/*return not (glm::any(glm::lessThan(max, other.min)) ||
+				         glm::any(glm::lessThan(other.max, min)) );*/
 		}
 
-		inline AABBQuery AABB::Collide(AABB const& other) const
+		/*inline AABBQuery AABB::Collide(AABB const& other) const
 		{
 			AABBQuery result{};
 
@@ -25,7 +27,7 @@ namespace drb {
 
 			for (Int32 i = 0; i < 3; ++i)
 			{
-				Float32 const pen = overlap.max[i] - overlap.min[i];
+				Real const pen = overlap.max[i] - overlap.min[i];
 				if (pen < result.penetration)
 				{
 					result.penetration = pen;
@@ -34,57 +36,68 @@ namespace drb {
 			}
 
 			return result;
-		}
+		}*/
 
 
 		inline Bool AABB::Contains(AABB const& other) const
 		{
-			/*return min.x <= other.min.x &&
-				min.y <= other.min.y &&
-				min.z <= other.min.z &&
-				max.x >= other.max.x &&
-				max.y >= other.max.y &&
-				max.z >= other.max.z;*/
-
-			return glm::all(glm::lessThanEqual(min, other.min)) &&
-				   glm::all(glm::greaterThanEqual(max, other.max));
+			return glm::all(glm::lessThanEqual(Min(), other.Min())) &&
+				glm::all(glm::greaterThanEqual(Max(), other.Max()));
 		}
 
-		inline Float32 AABB::DistSquaredFromPoint(Vec3 const& pt) const
+		inline Real AABB::DistSquaredFromPoint(Vec3 const& pt) const
 		{
-			Float32 d2 = 0.0f;
+			Vec3 const min = Min();
+			Vec3 const max = Max();
+			Real d2 = 0.0f;
 			for (Uint32 i = 0; i < 3; ++i)
 			{
-				Float32 const v = pt[i];
+				Real const v = pt[i];
 				if (v < min[i]) { d2 += (min[i] - v) * (min[i] - v); }
 				if (v > max[i]) { d2 += (v - max[i]) * (v - max[i]); }
 			}
 			return d2;
 		}
 
-		inline AABB AABB::Expanded(Float32 const scaleFactor) const
+		inline Vec3 AABB::Min() const
+		{
+			return c - e;
+		}
+
+		inline Vec3 AABB::Max() const
+		{
+			return c + e;
+		}
+
+		inline AABB& AABB::SetMinMax(Vec3 const& min, Vec3 const& max)
+		{
+			c = 0.5_r * (max + min);
+			e = 0.5_r * (max - min);
+			return *this;
+		}
+
+		inline AABB AABB::Expanded(Real const scaleFactor) const
 		{
 			Vec3 const r{ scaleFactor };
-			return AABB{ .max = max + r, .min = min - r };
+			return AABB{ .c = c, .e = e + r };
 		}
 
 		inline AABB AABB::Union(AABB const& other) const
 		{
-			return AABB{ 
-				.max = glm::max(max, other.max),
-				.min = glm::min(min, other.min)
-			};
+			Vec3 const min = glm::min(Min(), other.Min());
+			Vec3 const max = glm::max(Max(), other.Max());
+
+			return AABB{}.SetMinMax(min, max);
 		}
 
 		inline AABB AABB::MovedBy(Vec3 const& displacement) const
 		{
-			return AABB{ .max = max + displacement, .min = min + displacement };
+			return AABB{ .c = c + displacement, .e = e };
 		}
-
 
 		inline AABB AABB::MovedTo(Vec3 const& newCenter) const
 		{
-			return AABB{ .max = newCenter + Halfwidths(), .min = newCenter - Halfwidths() };
+			return AABB{ .c = newCenter, .e = e };
 		}
 
 		inline AABB AABB::Transformed(Mat4 const& transform) const
@@ -97,49 +110,46 @@ namespace drb {
 			return Transformed(glm::toMat3(orientation), pos);
 		}
 
-		// See Realtime Collision Detection by Ericson, Ch 4
-		inline AABB AABB::Transformed(Mat3 const& orientation, Vec3 const& pos) const
+		inline AABB AABB::Rotated(Mat3 const& rotation) const
 		{
-			AABB result{ .max = pos, .min = pos };
-
-			// Form extents by summing smaller and larger terms respectively
+			AABB result{ .c = Vec3(0.0_r), .e = Vec3(0.0_r) };
 			for (auto i = 0; i < 3; i++) {
 				for (auto j = 0; j < 3; j++) {
-					
-					Float32 const e = orientation[i][j] * min[j];
-					Float32 const f = orientation[i][j] * max[j];
-					
-					if (e < f) 
-					{
-						result.min[i] += e;
-						result.max[i] += f;
-					}
-					else 
-					{
-						result.min[i] += f;
-						result.max[i] += e;
-					}
+					result.c[i] += rotation[j][i] * c[j];
+					result.e[i] += glm::abs(rotation[j][i]) * e[j];
 				}
 			}
+			return result;
+		}
 
+		// See Realtime Collision Detection by Ericson, Ch 4
+		inline AABB AABB::Transformed(Mat3 const& rotation, Vec3 const& disp) const
+		{
+			AABB result{ .c = disp, .e = Vec3(0.0_r) };
+			for (auto i = 0; i < 3; i++) {
+				for (auto j = 0; j < 3; j++) {
+					result.c[i] += rotation[j][i] * c[j];
+					result.e[i] += glm::abs(rotation[j][i]) * e[j];
+				}
+			}
 			return result;
 		}
 
 		inline Vec3 AABB::Center() const
 		{
-			return 0.5f * (min + max);
+			return c;
 		}
 
 		inline Vec3 AABB::Halfwidths() const
 		{
-			return 0.5f * (max - min);
+			return e;
 		}
 
 
-		inline Float32 AABB::SurfaceArea() const
+		inline Real AABB::SurfaceArea() const
 		{
-			Vec3 const d = max - min;
-			return 2.0f * (d.x * d.y + d.y * d.z + d.z * d.x);
+			Vec3 const d = 2.0_r * e;
+			return 2.0_r * (d.x * d.y + d.y * d.z + d.z * d.x);
 		}
 	}
 }

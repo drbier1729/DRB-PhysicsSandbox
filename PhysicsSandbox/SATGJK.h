@@ -14,13 +14,13 @@ namespace drb::physics::util {
 	// Separating Axis Test
 	// -----------------------------------------------------------------
 	struct FaceQuery {
-		Float32 separation = std::numeric_limits<Float32>::lowest();
+		Real separation = std::numeric_limits<Real>::lowest();
 		Vec3    normal = {};
 		Int16   index = -1;
 	};
 
 	struct EdgeQuery {
-		Float32 separation = std::numeric_limits<Float32>::lowest();
+		Real separation = std::numeric_limits<Real>::lowest();
 		Vec3	normal = {};
 		Int16   indexA = -1;
 		Int16   indexB = -1;
@@ -35,7 +35,7 @@ namespace drb::physics::util {
 
 	// This is a check for a single axis -- could have been the cached separating axis
 	// from a previous SAT query. Axis must be in world space and oriented pointing A->B
-	Float32	  SeparationOnAxis(Vec3 const& axis, Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
+	Real	  SeparationOnAxis(Vec3 const& axis, Convex const& A, Mat4 const& trA, Convex const& B, Mat4 const& trB);
 
 
 	// -----------------------------------------------------------------

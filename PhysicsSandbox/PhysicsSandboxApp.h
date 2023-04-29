@@ -12,17 +12,17 @@ namespace drb {
     {
     private:
         // Managers
-        physics::World mWorld{ 1024, 4096, 20 };
-        physics::DebugRenderer mRenderer{};
-        physics::WorldStateRecorder mRecorder{};
+        std::vector<physics::World> mWorlds{};
+        std::vector<physics::DebugRenderer> mRenderers{};
+        std::vector<physics::WorldStateRecorder> mRecorders{};
         Camera mCam{};
         FrameTimer mTimer{};
 
         // Input
-        Vec2 mMouse{};
-        Vec2 mMouseDelta{};
+        glm::vec2 mMouse{};
+        glm::vec2 mMouseDelta{};
         Bool mMouseLeft = false, mMouseRight = false;
-        Vec2 mWASD{};
+        glm::vec2 mWASD{};
         Vec2 mArrows{};
         Bool mNumKeys[10] = {}, mNumKeysPrev[10] = {};
         Bool mEscape = false;

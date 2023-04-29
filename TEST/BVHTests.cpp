@@ -40,12 +40,12 @@ namespace TEST
 			std::vector<BVHandle> handles{};
 			for (auto i = 0; i < 64; ++i)
 			{
-				handles.push_back( bvh.Insert(AABB{ .max = Vec3(i), .min = Vec3(0) }) );
+				handles.push_back( bvh.Insert(AABB{ .c = Vec3(i), .e = Vec3(2) }) );
 			}
 
-			auto handle1 = bvh.Insert(AABB{ .max = Vec3(-1), .min = Vec3(-3) });
+			auto handle1 = bvh.Insert(AABB{ .c = Vec3(-1), .e = Vec3(3) });
 
-			auto handle2 = bvh.Insert(AABB{.max = Vec3(10), .min = Vec3(3)});
+			auto handle2 = bvh.Insert(AABB{.c = Vec3(10), .e = Vec3(3)});
 
 			bvh.Remove(handle1);
 

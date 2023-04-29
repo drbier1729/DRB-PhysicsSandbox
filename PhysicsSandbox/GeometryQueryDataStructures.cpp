@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "GeometryQueryDataStructures.h"
 
+#include "DRBAssert.h"
+
 namespace drb::physics {
 
 	CollisionPair::CollisionPair(CollisionProxy const& a_, CollisionProxy const& b_)

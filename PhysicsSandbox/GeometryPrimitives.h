@@ -6,10 +6,10 @@ namespace drb::physics {
 	// Point p on plane  iff  n * p - d = 0
 	struct Plane
 	{
-		Vec3    n = Vec3(1, 0, 0); // unit normal
-		Float32 d = 0.0f;          // signed distance
+		Vec3 n = Vec3(1, 0, 0); // unit normal
+		Real d = 0.0_r;         // signed distance
 
-		static constexpr Float32 thickness = 0.01f; // 1cm
+		static constexpr Real thickness = 0.01_r; // 1cm
 
 		Plane Transformed(Mat4 const& transform) const;
 		Plane Rotated(Quat const& orientation) const;
@@ -40,8 +40,8 @@ namespace drb::physics {
 
 		Segment Transformed(Mat4 const& transform) const;
 		Vec3    Vector() const;
-		Float32 Length() const;
-		Float32 Length2() const;
+		Real Length() const;
+		Real Length2() const;
 	};
 
 }

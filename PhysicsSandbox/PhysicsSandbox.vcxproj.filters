@@ -132,6 +132,18 @@
     <ClCompile Include="GeometryPrimitives.cpp">
       <Filter>Source Files\Physics\Collision</Filter>
     </ClCompile>
+    <ClCompile Include="Constraints.cpp">
+      <Filter>Source Files\Physics\RigidbodyDynamics</Filter>
+    </ClCompile>
+    <ClCompile Include="DRBAssert.cpp">
+      <Filter>Source Files\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="ContactSolver.cpp">
+      <Filter>Source Files\Physics\RigidbodyDynamics</Filter>
+    </ClCompile>
+    <ClCompile Include="Transform.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -224,6 +236,18 @@
     <ClInclude Include="GeometryPrimitives.h">
       <Filter>Header Files\Physics\Collision</Filter>
     </ClInclude>
+    <ClInclude Include="Constraints.h">
+      <Filter>Header Files\Physics\RigidbodyDynamics</Filter>
+    </ClInclude>
+    <ClInclude Include="DRBAssert.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="ContactSolver.h">
+      <Filter>Header Files\Physics\RigidbodyDynamics</Filter>
+    </ClInclude>
+    <ClInclude Include="Transform.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="RigidBody.inl">
@@ -270,6 +294,9 @@
     </None>
     <None Include="CollisionGeometry.inl">
       <Filter>Header Files\Physics\Collision</Filter>
+    </None>
+    <None Include="Constraints.inl">
+      <Filter>Header Files\Physics\RigidbodyDynamics</Filter>
     </None>
   </ItemGroup>
 </Project>

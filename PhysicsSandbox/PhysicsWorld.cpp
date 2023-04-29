@@ -3,6 +3,9 @@
 
 #include "RayCast.h"
 #include "CollisionQueries.h"
+#include "ContactSolver.h"
+
+#include "DRBAssert.h"
 
 namespace drb::physics {
 
@@ -48,6 +51,7 @@ namespace drb::physics {
 					});
 
 					proxy.bvHandle = bvhTree.Insert(bounds, &proxy);
+					bvhTree.SetMoved(proxy.bvHandle, false);
 				});
 			}
 		}
@@ -73,38 +77,53 @@ namespace drb::physics {
 			});
 		}
 	}
-
+#define DRB_PHYSICS_XPBD 1
 
 #ifdef DRB_PHYSICS_XPBD
-	void World::Step(Float32 dt)
+	void World::Step(Real dt)
 	{
 		// Broadphase Collision Detection
-		// ...
-
-
-		// Narrowphase Collision Detection + Contact Generation
-		DetectCollisions();
-
+		// TODO: this may need to be more aggressive about generating
+		//		potential collisions so that manifolds are not missed during
+		//		substepping
+		DetectCollisionsBroad(dt);
 
 		// XPBD loop with substepping
-		Float32 const h = dt / targetSubsteps;
+		Real const h = dt / targetSubsteps;
+		Real const invH = 1.0_r / h;
 		for (Uint32 i = 0; i < targetSubsteps; ++i)
 		{
+			// Narrowphase Collision Detection + Contact Generation
+			// TODO: this should be split into two parts:
+			// - collision detection/manifold generation (happens outside substep)
+			// - manifold update (happens inside the substep)
+			DetectCollisionsNarrow();
+
+
 			for (auto&& rb : bodies) { rb.ProjectPositions(h); }
 
 			// Solve Position constraints
 			// - Collision Resolution
-			// - HeightMap constraint/collision
+			// - Distance Constraints
+			// - Joint Constraints
+			for (auto&& [p, m] : contacts) {
+				SolveManifoldPositions(m, invH);
+			}
+			// ...
 
-			for (auto&& rb : bodies) { rb.ProjectVelocities(h); }
+			for (auto&& rb : bodies) { rb.ProjectVelocities(invH); }
 
 			// Solve Velocity constraints
 			// - Friction
 			// - Damping
+			for (auto&& [p, m] : contacts) {
+				SolveManifoldVelocities(m, h);
+			}
+			// ...
 		}
 
 		// Zero forces
-		for (auto&& rb : bodies)
+		for (SizeT i = 0; auto&& rb : bodies)
 		{
 			rb.accumulatedForces = Vec3(0);
 			rb.accumulatedTorques = Vec3(0);
@@ -114,7 +133,7 @@ namespace drb::physics {
 		// ...
 	}
 #else
-	void World::Step(Float32 dt)
+	void World::Step(Real dt)
 	{
 		// Broadphase Collision Detection
 		DetectCollisionsBroad();
@@ -125,7 +144,7 @@ namespace drb::physics {
 		// Sequential Impulses loop with substepping
 		for (auto&& rb : bodies) { rb.ProjectForces(dt); }
 
-		Float32 const h = dt / targetSubsteps;
+		Real const h = dt / targetSubsteps;
 		for (Uint32 i = 0; i < targetSubsteps; ++i)
 		{
 			// Solve Velocity constraints
@@ -194,10 +213,46 @@ namespace drb::physics {
 		return { proxy, result };
 	}
 
-	void World::DetectCollisionsBroad()
+	void World::DetectCollisionsBroad(Real dt)
 	{
 		potentialCollisions.clear();
 
+		// Update broad phase tree
+		for (SizeT i = 0; auto && rb : bodies)
+		{
+			if (rb.geometry)
+			{
+				// Get the pre-update transform matrix
+				Mat4 const preTr = rb.GetTransformMatrix();
+
+				// Get the post-update transform matrix by projecting forward
+				Vec3 const postPos = rb.position + rb.linearVelocity * dt;
+				Quat const postRot = Normalize(rb.orientation + 0.5_r * Quat(0, rb.angularVelocity) * rb.orientation * dt);
+				Mat4 const postTr  = glm::translate(Mat4(1), postPos) * glm::toMat4(postRot);
+
+				// Update broadphase tree
+				for (auto&& proxy : bodyProxies[i])
+				{
+					AABB const preBounds = std::visit([&preTr](auto&& s)   { return s->Bounds(preTr); }, proxy.shape);
+					AABB const postBounds = std::visit([&postTr](auto&& s) { return s->Bounds(postTr); }, proxy.shape);
+
+					Vec3 const disp = postBounds.Center() - preBounds.Center();
+
+					Bool const moved = bvhTree.MoveBoundingVolume(proxy.bvHandle, postBounds.Union(preBounds), disp);
+					if (moved)
+					{
+						movedLastFrame.push_back(proxy);
+					}
+					else
+					{
+						bvhTree.SetMoved(proxy.bvHandle, false);
+					}
+				}
+			}
+			++i;
+		}
+
+		// For every body that moved in the last frame, query the BVH for collisions
 		for (auto&& queryProxy : movedLastFrame)
 		{
 			BVHNode const* queryNode = bvhTree.Find(queryProxy.bvHandle);
@@ -236,7 +291,7 @@ namespace drb::physics {
 			auto it = contacts.find(p);
 			if (it == contacts.end())
 			{
-				contacts.emplace(p, ContactManifold{});
+				contacts.emplace(p, ContactManifold{.rbA = p.a.rb, .rbB = p.b.rb});
 			}
 		}
 
@@ -254,13 +309,6 @@ namespace drb::physics {
 		{
 			// Decompose into key (CollisionPair) and value (ContactManifold)
 			auto & [p, m] = *it;
-
-			ConstShapePtr const shapeA = p.a.shape;
-			ConstShapePtr const shapeB = p.b.shape;
-			
-			Mat4 const trA = p.a.rb->GetTransformMatrix();
-			Mat4 const trB = p.b.rb->GetTransformMatrix();
-
 			// Midphase pre-checks
 			
 			// 1) recheck fat AABBs for overlap -- if none, remove 
@@ -275,7 +323,6 @@ namespace drb::physics {
 				}
 			}
 
-
 			// TODO:
 			// 2) check cached axis of least penetration or cached
 			// GJK simplex -- if separation, update the manifold 
@@ -287,9 +334,15 @@ namespace drb::physics {
 			//  --> update cached simplex
 			//
 
+			ConstShapePtr const shapeA = p.a.shape;
+			ConstShapePtr const shapeB = p.b.shape;
+
+			Mat4 const trA = p.a.rb->GetTransformMatrix();
+			Mat4 const trB = p.b.rb->GetTransformMatrix();
+
 			// Do the full narrow phase collision detection and update the manifold
 			ContactManifold const newManifold = Collide(shapeA, trA, shapeB, trB);
-			m = newManifold; // m.Update(newManifold);
+			UpdateManifold(m, newManifold);
 			
 			++it;
 		}

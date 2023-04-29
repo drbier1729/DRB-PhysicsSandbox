@@ -12,8 +12,6 @@ namespace drb {
 	class Mesh
 	{
 	public:
-		friend Mesh BuildMeshFromFile(const char* filename) noexcept;
-
 		using Ref = std::reference_wrapper<Mesh>;
 		using CRef = std::reference_wrapper<const Mesh>;
 

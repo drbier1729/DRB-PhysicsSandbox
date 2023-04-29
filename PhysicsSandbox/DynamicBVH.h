@@ -10,8 +10,8 @@ namespace drb::physics {
 	// Bounding volume
 	struct BV
 	{
-		static constexpr Float32 enlargeFactor = 0.1f;
-		static constexpr Float32 displacementMultiplier = 4.0f;
+		static constexpr Real enlargeFactor = 0.1_r;
+		static constexpr Real displacementMultiplier = 4.0_r;
 
 		void* userData = nullptr;
 		AABB  fatBounds = {};     // enlarged AABB
@@ -77,8 +77,6 @@ namespace drb::physics {
 		inline Bool IsFree() const;
 		inline Bool IsLeaf() const;
 	};
-	static_assert(sizeof(BVHNode) <= 64);
-
 
 
 	// Callback signature for querying the BVHierarchy
@@ -120,8 +118,8 @@ namespace drb::physics {
 
 			NodePool(NodePool const&) = delete;
 			NodePool& operator=(NodePool const&) = delete;
-			NodePool(NodePool &&) = delete;
-			NodePool& operator=(NodePool &&) = delete;
+			NodePool(NodePool &&) noexcept;
+			NodePool& operator=(NodePool &&) noexcept;
 
 			BVHNode&       operator[](Int32 index);
 			BVHNode const& operator[](Int32 index) const;
@@ -148,7 +146,7 @@ namespace drb::physics {
 		void		   Reserve(Int32 objectCount);
 		void		   Clear();
 		void		   Query(AABB const& box, BVHIntersectionQuery auto queryCallback) const;
-		void		   Query(Float32 radius, Vec3 const& center, BVHIntersectionQuery auto queryCallback) const;
+		void		   Query(Real radius, Vec3 const& center, BVHIntersectionQuery auto queryCallback) const;
 		void		   Query(Ray const& ray, BVHRayCastQuery auto queryCallback) const;
 		
 		// DEBUG ONLY

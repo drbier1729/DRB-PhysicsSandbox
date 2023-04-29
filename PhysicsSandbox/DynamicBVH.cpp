@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "DynamicBVH.h"
-
+#include "DRBAssert.h"
 
 namespace drb::physics {
 
@@ -55,12 +55,14 @@ namespace drb::physics {
 			Vec3 const d = BV::displacementMultiplier * displacement;
 
 			AABB predictedAABB = aabb.Expanded(BV::enlargeFactor);
-			if (d.x < 0.0f) { predictedAABB.min.x += d.x; }
-			else { predictedAABB.max.x += d.x; }
-			if (d.y < 0.0f) { predictedAABB.min.y += d.y; }
-			else { predictedAABB.max.y += d.y; }
-			if (d.z < 0.0f) { predictedAABB.min.z += d.z; }
-			else { predictedAABB.max.z += d.z; }
+			Vec3 min = predictedAABB.Min(), max = predictedAABB.Max();
+			if (d.x < 0.0) { min.x += d.x; }
+			else { max.x += d.x; }
+			if (d.y < 0.0) { min.y += d.y; }
+			else { max.y += d.y; }
+			if (d.z < 0.0) { min.z += d.z; }
+			else { max.z += d.z; }
+			predictedAABB.SetMinMax(min, max);
 
 			AABB const& treeAABB = tree[index].bv.fatBounds;
 			if (treeAABB.Contains(predictedAABB))
@@ -115,6 +117,31 @@ namespace drb::physics {
 	BVHierarchy::NodePool::~NodePool() noexcept
 	{
 		std::free(nodes);
+	}
+
+	BVHierarchy::NodePool::NodePool(BVHierarchy::NodePool&& src) noexcept
+		: nodes{src.nodes}, firstFree{src.firstFree}, size{src.size}, capacity{src.capacity}
+	{
+		src.nodes = nullptr;
+		src.firstFree = NullIdx;
+		src.size = 0;
+		src.capacity = 0;
+	}
+
+	BVHierarchy::NodePool& BVHierarchy::NodePool::operator=(BVHierarchy::NodePool&& src) noexcept
+	{
+		if (this == std::addressof(src)) { return *this; }
+		nodes = src.nodes;
+		firstFree = src.firstFree;
+		size = src.size;
+		capacity = src.capacity;
+
+		src.nodes = nullptr;
+		src.firstFree = NullIdx;
+		src.size = 0;
+		src.capacity = 0;
+
+		return *this;
 	}
 
 	void BVHierarchy::NodePool::Clear()
@@ -401,11 +428,11 @@ namespace drb::physics {
 
 			BVHNode& curr = tree[idx];
 
-			Float32 const currSA = curr.bv.fatBounds.SurfaceArea();
-			Float32 const combinedSA = Union(curr.bv.fatBounds, nnBounds).SurfaceArea();
+			Real const currSA = curr.bv.fatBounds.SurfaceArea();
+			Real const combinedSA = Union(curr.bv.fatBounds, nnBounds).SurfaceArea();
 
-			Float32 const inheritedCost = 2.0f * (combinedSA - currSA);
-			Float32       directCost = 2.0f * combinedSA;
+			Real const inheritedCost = 2.0_r * (combinedSA - currSA);
+			Real       directCost = 2.0_r * combinedSA;
 
 			// Descend according to minimum cost, break if no children are better than this node
 			for (Int8 i = 0; i < 2; ++i)
@@ -415,15 +442,15 @@ namespace drb::physics {
 				BVHNode const& child = tree[curr.children[i]];
 				AABB const childBounds = Union(nnBounds, child.bv.fatBounds);
 
-				Float32 childCost = 0.0f;
+				Real childCost = 0.0_r;
 				if (child.IsLeaf())
 				{
 					childCost = childBounds.SurfaceArea() + inheritedCost;
 				}
 				else
 				{
-					Float32 const oldSA = child.bv.fatBounds.SurfaceArea();
-					Float32 const newSA = childBounds.SurfaceArea();
+					Real const oldSA = child.bv.fatBounds.SurfaceArea();
+					Real const newSA = childBounds.SurfaceArea();
 					childCost = (newSA - oldSA) + inheritedCost;
 				}
 

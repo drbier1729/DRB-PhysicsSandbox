@@ -1,3 +1,6 @@
+
+#include "DRBAssert.h"
+
 namespace drb::physics {
 
 	// -------------------------------------------------------------------------
@@ -7,7 +10,7 @@ namespace drb::physics {
 	inline Mat3 Sphere::InertiaTensorAbout(Vec3 const& pt) const
 	{
 		// Compute local inertia tensor with center of mass at origin
-		Mat3 I = 0.4f * r * r * Mat3(1);
+		Mat3 I = 0.4_r * r * r * Mat3(1);
 
 		// Use Parallel Axis Theorem to translate the inertia tensor
 		Vec3 const disp = pt - c;        // displacement vector from center to pt
@@ -22,16 +25,6 @@ namespace drb::physics {
 	}
 
 	inline void Sphere::SetPosition(Vec3 const& newC)
-	{
-		c = newC;
-	}
-	
-	inline Vec3 Sphere::Centroid() const
-	{
-		return c;
-	}
-
-	inline void Sphere::SetCentroid(Vec3 const& newC)
 	{
 		c = newC;
 	}
@@ -59,8 +52,8 @@ namespace drb::physics {
 	inline AABB Sphere::Bounds(Mat4 const& worldTr) const
 	{
 		Vec3 const extents = Vec3(r);
-		Vec3 const worldC = c + Vec3(worldTr[3]);
-		return AABB{ .max = worldC + extents, .min = worldC - extents};
+		Vec3 const worldC = worldTr * Vec4(c, 1);
+		return AABB{ .c = worldC, .e = extents};
 	}
 
 
@@ -72,27 +65,27 @@ namespace drb::physics {
 	{
 		// Compute inertia tensor, assuming oriented vertically and
 		// center is at local origin
-		static constexpr Float32 two_pi = 6.283f;
+		static constexpr Real two_pi = 6.283_r;
 
-		Float32 const rSq = r * r;
-		Float32 const height = 2.0f * h;
+		Real const rSq = r * r;
+		Real const height = 2.0_r * h;
 
 		// Cylinder volume
-		Float32 const cV = two_pi * h * rSq;
+		Real const cV = two_pi * h * rSq;
 
 		// Hemisphere volume
-		Float32 const hsV = two_pi * rSq * r / 3.0f;
+		Real const hsV = two_pi * rSq * r / 3.0_r;
 
 		Mat3 I(0);
-		I[1][1] = rSq * cV * 0.5f;
-		I[0][0] = I[2][2] = I[1][1] * 0.5f + cV * height * height / 12.0f;
+		I[1][1] = rSq * cV * 0.5_r;
+		I[0][0] = I[2][2] = I[1][1] * 0.5_r + cV * height * height / 12.0_r;
 
-		Float32 const temp0 = hsV * 2.0f * rSq / 5.0f;
-		I[1][1] += temp0 * 2.0f;
+		Real const temp0 = hsV * 2.0_r * rSq / 5.0_r;
+		I[1][1] += temp0 * 2.0_r;
 
-		Float32 const temp1 = temp0 + (hsV * height * height) / 4.0f + (3.0f * height * r) / 8.0f;
-		I[0][0] += temp1 * 2.0f;
-		I[2][2] += temp1 * 2.0f;
+		Real const temp1 = temp0 + (hsV * height * height) / 4.0_r + (3.0_r * height * r) / 8.0_r;
+		I[0][0] += temp1 * 2.0_r;
+		I[2][2] += temp1 * 2.0_r;
 
 		// Use Parallel Axis Theorem to translate the inertia tensor
 		Vec3 const disp = pt - Position(); // displacement vector from center to pt
@@ -103,7 +96,7 @@ namespace drb::physics {
 
 	inline Vec3 Capsule::Position() const
 	{
-		return 0.5f * (seg.b + seg.e);
+		return 0.5_r * (seg.b + seg.e);
 	}
 
 	inline void Capsule::SetPosition(Vec3 const& newC)
@@ -113,19 +106,9 @@ namespace drb::physics {
 		seg.e = newC + h * dir;
 	}
 
-	inline Vec3 Capsule::Centroid() const
-	{
-		return Position();
-	}
-
-	inline void Capsule::SetCentroid(Vec3 const& newC)
-	{
-		SetPosition(newC);
-	}
-
 	inline Quat Capsule::Orientation() const
 	{
-		return Quat(Vec3(0, 1, 0), 0.5f * (seg.e - seg.b));
+		return Quat(Vec3(0, 1, 0), 0.5_r * (seg.e - seg.b));
 	}
 
 	inline void Capsule::SetOrientation(Quat const& newO)
@@ -150,7 +133,7 @@ namespace drb::physics {
 	inline AABB Capsule::Bounds(Mat4 const& worldTr) const
 	{
 		Vec3 const extents = Vec3(r, h + r, r);
-		AABB const boundsLocal{ .max = extents, .min = -extents };
+		AABB const boundsLocal = AABB{ .e = extents };
 
 		return boundsLocal.Transformed(worldTr * Transform());
 	}
@@ -161,12 +144,12 @@ namespace drb::physics {
 	// -------------------------------------------------------------------------
 	inline Mat3 Box::InertiaTensorAbout(Vec3 const& pt) const
 	{
-		static constexpr Float32 oneTwelfth = 1.0f / 12.0f;
+		static constexpr Real oneTwelfth = 1.0_r / 12.0_r;
 
 		// Compute local inertia tensor
-		Float32 const w2 = oneTwelfth * extents.x * extents.x;
-		Float32 const h2 = oneTwelfth * extents.y * extents.y;
-		Float32 const d2 = oneTwelfth * extents.z * extents.z;
+		Real const w2 = oneTwelfth * extents.x * extents.x;
+		Real const h2 = oneTwelfth * extents.y * extents.y;
+		Real const d2 = oneTwelfth * extents.z * extents.z;
 		Mat3 I{
 			h2 + d2, 0, 0,
 			0, w2 + d2, 0,
@@ -191,16 +174,6 @@ namespace drb::physics {
 	inline void Box::SetPosition(Vec3 const& newPosition)
 	{
 		position = newPosition;
-	}
-	
-	inline Vec3 Box::Centroid() const
-	{
-		return position;
-	}
-
-	inline void Box::SetCentroid(Vec3 const& newC)
-	{
-		position = newC;
 	}
 
 	inline Quat Box::Orientation() const
@@ -229,9 +202,9 @@ namespace drb::physics {
 		position    = newTransform[3];
 	}
 
-	inline AABB Box::Bounds(Mat4 const& worldTransform) const
+	inline AABB Box::Bounds(Mat4 const& worldTr) const
 	{
-		return AABB{ .max = extents, .min = -extents }.Transformed( worldTransform * Transform() );
+		return AABB{ .e = extents }.Transformed(worldTr * Transform());
 	}
 
 
@@ -240,12 +213,16 @@ namespace drb::physics {
 	// -------------------------------------------------------------------------
 	inline Mat3 Convex::InertiaTensorAbout(Vec3 const& pt) const
 	{
+		// NOTE: this computes the inertia tensor assuming
+		// the shape consists of connected point masses,
+		// not a solid shape
+
 		Mat3 I(0);
 
 		auto const verts = GetVerts();
 		for (auto&& v : verts)
 		{
-			Vec3 const r = (glm::rotate(orientation, v) + position) - pt; // relative position from pt to v
+			Vec3 const r = (orientation * v + position) - pt;
 			I[0][0] += r.y * r.y + r.z * r.z;
 			I[0][1] -= r.x * r.y;
 			I[0][2] -= r.x * r.z;
@@ -273,16 +250,6 @@ namespace drb::physics {
 		position = newC;
 	}
 
-	inline Vec3 Convex::Centroid() const
-	{
-		return data ? position + data->localCentroid : position;
-	}
-
-	inline void Convex::SetCentroid(Vec3 const& newC)
-	{
-		position = data ? newC - data->localCentroid : newC;
-	}
-
 	inline Quat Convex::Orientation() const
 	{
 		return orientation;
@@ -295,9 +262,9 @@ namespace drb::physics {
 
 	inline Mat4 Convex::Transform() const
 	{
-		// Orientation is applied to the object with its centroid at the origin
-		return glm::translate(Mat4(1), Centroid()) * glm::toMat4(orientation) * glm::translate(Mat4(1), -LocalCentroid());
+		return glm::translate(Mat4(1), position) * glm::toMat4(orientation);
 	}
+	
 
 	inline void Convex::SetTransform(Mat4 const& newTr)
 	{
@@ -307,12 +274,15 @@ namespace drb::physics {
 
 	inline AABB Convex::Bounds(Mat4 const& worldTr) const
 	{
-		return bounds.Transformed(worldTr * Transform());
+		return bounds.Transformed(Transform()).Transformed(worldTr);
 	}
 
-	inline Vec3 Convex::LocalCentroid() const
+	inline Mat4 Convex::ModelTransform() const
 	{
-		return data ? data->localCentroid : Vec3(0);
+		Mat4 const tr = Transform();
+		return data ? 
+			tr * glm::translate(Mat4(1), -data->localCentroid) :
+			Transform();
 	}
 
 	inline Vec3 const& Convex::GetVert(VertID index) const
@@ -463,8 +433,8 @@ namespace drb::physics {
 	{
 		ASSERT(face < NumFaces(), "Index out of range");
 
-		HalfEdge const* edgesRaw           = GetRawEdges();
-		Face const* facesRaw               = GetRawFaces();
+		HalfEdge const* edgesRaw     = GetRawEdges();
+		Face const* facesRaw         = GetRawFaces();
 		Convex::HalfEdge const start = edgesRaw[ facesRaw[face].edge ];
 
 		Convex::HalfEdge e = start;
@@ -510,7 +480,7 @@ namespace drb::physics {
 		}
 	}
 
-	CollisionGeometry& CollisionGeometry::AddCollider(Shape auto const& collider, Float32 mass)
+	CollisionGeometry& CollisionGeometry::AddCollider(Shape auto const& collider, Real mass)
 	{
 		if (locked)
 		{
@@ -520,7 +490,7 @@ namespace drb::physics {
 
 		using T = std::remove_cvref_t<decltype(collider)>;
 
-		ColliderSettings s{ .type = T::type, .relativeMass = mass, .centroid = collider.Centroid() };
+		ColliderSettings s{ .type = T::type, .relativeMass = mass, .centroid = collider.Position() };
 
 		if constexpr (std::same_as<T, Sphere>)
 		{
@@ -551,7 +521,7 @@ namespace drb::physics {
 		return *this;
 	}
 
-	CollisionGeometry& CollisionGeometry::AddCollider(Shape auto&& collider, Float32 mass)
+	CollisionGeometry& CollisionGeometry::AddCollider(Shape auto&& collider, Real mass)
 	{
 		if (locked)
 		{
@@ -561,7 +531,7 @@ namespace drb::physics {
 
 		using T = std::remove_cvref_t<decltype(collider)>;
 
-		ColliderSettings s{ .type = T::type, .relativeMass = mass, .centroid = collider.Centroid() };
+		ColliderSettings s{ .type = T::type, .relativeMass = mass, .centroid = collider.Position() };
 
 		if constexpr (std::same_as<T, Sphere>)
 		{
@@ -607,7 +577,7 @@ namespace drb::physics {
 
 	inline Mat3 const& CollisionGeometry::InverseInertia() const { return invInertia; }
 
-	inline Float32     CollisionGeometry::InverseMass() const    { return invMass; }
+	inline Real     CollisionGeometry::InverseMass() const       { return invMass; }
 	
 	inline Vec3 const& CollisionGeometry::CenterOfMass() const   { return centerOfMass; }
 	

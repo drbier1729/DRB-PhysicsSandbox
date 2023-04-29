@@ -1,4 +1,6 @@
 
+#include "DRBAssert.h"
+
 namespace drb {
 	namespace physics {
 		inline void RigidBodyState::CopyTo(RigidBody& rb) const

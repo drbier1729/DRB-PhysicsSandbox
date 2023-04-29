@@ -28,21 +28,21 @@ namespace drb::physics {
 
 	private:
 		// Dynamic and kinematic objects -- capacity == maxBodies
-		std::vector<RigidBody>     bodies;
+		std::vector<RigidBody>         bodies;
 			
 		// RigidBody used to handle collisions with static colliders
-		RigidBody		           worldBody;
+		RigidBody		               worldBody;
 
 		// Static collision geometry -- capacity == maxColliders
 		std::vector<CollisionGeometry> colliders;
 
 		// Dynamic AABB hierarchy and supporting data for broadphase 
 		// collision detection
-		BVHierarchy			       bvhTree;
-		std::vector<ProxyArray>    bodyProxies;    // parallel with bodies array
-		std::vector<ProxyArray>    staticProxies;  // all proxies for static geometry
-		ProxyArray                 movedLastFrame;
-		std::vector<CollisionPair> potentialCollisions;
+		BVHierarchy			           bvhTree;
+		std::vector<ProxyArray>        bodyProxies;    // parallel with bodies array
+		std::vector<ProxyArray>        staticProxies;  // all proxies for static geometry
+		ProxyArray                     movedLastFrame;
+		std::vector<CollisionPair>     potentialCollisions;
 	
 		// Contacts between RigidBody collision geometries
 		// (use std::map to maintain consistent solver order)
@@ -59,7 +59,10 @@ namespace drb::physics {
 		// -----------------------------------------------------------------
 
 		World(Uint32 maxBodies, Uint32 maxColliders, Uint32 targetSubsteps);
-		// ... everything else defaulted
+		
+		World(World&&) noexcept = default;
+		World& operator=(World&&) noexcept = default;
+		~World() noexcept = default;
 			
 
 		// -----------------------------------------------------------------
@@ -68,7 +71,7 @@ namespace drb::physics {
 			
 		void Init();
 
-		void Step(Float32 dt);
+		void Step(Real dt);
 			
 		inline RigidBody& CreateRigidBody(RigidBody const& source);
 		inline RigidBody& CreateRigidBody(RigidBody&& source = {});
@@ -90,9 +93,8 @@ namespace drb::physics {
 		// ...
 
 	private:
-		void DetectCollisionsBroad();
+		void DetectCollisionsBroad(Real dt);
 		void DetectCollisionsNarrow();
-
 	};
 }
 

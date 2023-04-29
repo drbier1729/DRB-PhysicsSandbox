@@ -67,7 +67,7 @@ namespace TEST
 		TEST_METHOD(GJKPointConvexTest)
 		{
 			using drb::physics::Convex;
-			using drb::Float32;
+			using drb::Real;
 			using drb::Vec3;
 			using drb::Mat4;
 			using drb::physics::ClosestPointsQuery;
@@ -88,7 +88,7 @@ namespace TEST
 				query = drb::physics::util::GJK(pt, hull, Mat4(1));
 
 				// assert
-				Float32 const d = glm::sqrt(query.d2);
+				Real const d = glm::sqrt(query.d2);
 				Assert::IsTrue( d < 1.01f && d > 0.99f, L"Incorrect distance value");
 				Assert::IsTrue(drb::EpsilonEqual(query.ptA, pt), L"Incorrect witness point A");
 				Assert::IsTrue(drb::EpsilonEqual(query.ptB, Vec3(1, 0.5, 0)), L"Incorrect witness point B");

@@ -1,3 +1,5 @@
+#include "DRBAssert.h"
+
 namespace drb::physics {
 
 		inline RigidBody& World::CreateRigidBody(RigidBody&& source)
@@ -15,7 +17,6 @@ namespace drb::physics {
 		inline World& World::CreateStaticCollisionGeometry(CollisionGeometry&& geom)
 		{
 			ASSERT(not locked, "Cannot add static colliders when world is locked");
-
 			colliders.emplace_back(std::forward<CollisionGeometry>(geom));
 			return *this;
 		}

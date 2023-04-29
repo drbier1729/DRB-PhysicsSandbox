@@ -35,12 +35,14 @@ namespace TEST
 		
 		TEST_METHOD(TestGettersAndSetters)
 		{
-			drb::physics::RigidBody r{};
+			using namespace drb;
+			
+			physics::RigidBody r{};
 
-			drb::Mat3 testMat3(glm::rotate(drb::Mat4(1), 3.14f, drb::Vec3(1, 0, 0)));
-			drb::Quat testQuat(glm::toQuat(testMat3));
-			drb::Vec3 testVec3 = glm::eulerAngles(testQuat);
-			drb::Float32 testFloat = 0.5f;
+			Mat3 testMat3(glm::rotate(Mat4(1), 3.14_r, Vec3(1, 0, 0)));
+			Quat testQuat(glm::toQuat(testMat3));
+			Vec3 testVec3 = glm::eulerAngles(testQuat);
+			Real testFloat = 0.5_r;
 
 			r.SetLinearVelocity(testVec3);
 			Assert::AreEqual(testVec3, r.GetLinearVelocity(), L"Linear Velocities not equal");
@@ -60,19 +62,19 @@ namespace TEST
 			r.SetOrientation(testVec3);
 			Assert::AreEqual(testQuat, r.GetOrientation(), L"Orientations not equal");
 
-			r.SetOrientation(drb::Vec3(0));
+			r.SetOrientation(Vec3(0));
 			r.SetOrientation(testQuat);
 			Assert::AreEqual(testQuat, r.GetOrientation(), L"Orientations not equal");
 
-			r.SetOrientation(drb::Vec3(0));
+			r.SetOrientation(Vec3(0));
 			r.SetOrientation(testMat3);
 			Assert::AreEqual(testQuat, r.GetOrientation(), L"Orientations not equal");
 
 			r.SetRestitution(testFloat);
 			Assert::AreEqual(testFloat, r.GetResitution(), L"Restitutions not equal");
 
-			r.SetType(drb::physics::RigidBody::Type::Kinematic);
-			Assert::AreEqual(drb::physics::RigidBody::Type::Kinematic, r.GetType(), L"Types not equal");
+			r.SetType(physics::RigidBody::Type::Kinematic);
+			Assert::AreEqual(physics::RigidBody::Type::Kinematic, r.GetType(), L"Types not equal");
 
 			r.SetMass(testFloat);
 			Assert::AreEqual(1.0f / (1.0f / testFloat), r.GetMass(), L"Masses not equal");

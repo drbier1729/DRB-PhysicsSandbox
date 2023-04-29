@@ -17,18 +17,18 @@ Build and Run
 Demo Controls
 --------------------------------------------------------------------------------
 
-ESC         - Quit
+- ESC         : Quit
 
-WASD        - Move camera forward/backward + left/right
-Arrows      - Apply force to selected RigidBody in +/- y and +/- x directions
-Left Mouse  - Select RigidBody (hover and click)
-Right Mouse - Hold and drag mouse to turn camera
+- WASD        : Move camera forward/backward + left/right
+- Arrows      : Apply force to selected RigidBody in +/- y and +/- x directions
+- Left Mouse  : Select RigidBody (hover and click)
+- Right Mouse : Hold and drag mouse to turn camera
 
-NumKey 1    - Toggle Pause
-NumKey 2    - Toggle Single-step mode
+- NumKey 1    : Toggle Pause
+- NumKey 2    : Toggle Single-step mode
 
 (While Paused)
-NumKey 9/0  - Step backward/forward
+- NumKey 9/0  : Step backward/forward
 
 --------------------------------------------------------------------------------
 GUI
@@ -57,12 +57,12 @@ RigidBody Viewer:
 Visuals
 --------------------------------------------------------------------------------
 
-Dynamic rigidBodies are RED, Static are GREEN. 
+- Dynamic rigidBodies are RED, Static are GREEN. 
 
-RigidBody highlighted in BLUE is the one your cursor is hovering over (click to
+- RigidBody highlighted in BLUE is the one your cursor is hovering over (click to
 "select" it). The currently "selected" RigidBody is highlighted in ORANGE.
 
-WHITE arrows are linear velocity vectors.
+- WHITE arrows are linear velocity vectors.
 
 (While Drawing Contact Manifolds)
 - YELLOW cubes are contact points on each body.

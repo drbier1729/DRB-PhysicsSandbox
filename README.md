@@ -2,13 +2,16 @@
 Build and Run
 --------------------------------------------------------------------------------
 - if you'd like to build...
-    -> go to "solution" directory
-    -> open the PhysicsSandbox.sln using Visual Studio 2022
-    -> select "Release" build ("Debug" works, but is too slow for the complex
+    - go to "solution" directory
+    - open the PhysicsSandbox.sln using Visual Studio 2022
+    - select "Release" build ("Debug" works, but is too slow for the complex
         scenes)
-    -> build and run from Debugger
+    - build and run from Debugger
 - required dependencies...
-     -> GLEW (glew32.dll)
+     - GLEW (glew32.dll)
+     - all other dependencies (assimp, imgui, etc) are included in "deps" directory which includes their licences.
+        I know this isn't very profesh, but since this is a hobby project I don't feel too bad about it. Feel free
+        to set up those dependencies on your own if you'd like.
 
 --------------------------------------------------------------------------------
 Demo Controls

@@ -1,4 +1,16 @@
 --------------------------------------------------------------------------------
+About
+--------------------------------------------------------------------------------
+- Created for CS550 at DigiPen Institute of Technology, Spring 2023
+- Demo real-time physics engine which features:
+    - Dynamic bounding volume hierarchy of AABBs for broad-phase collision detection
+    - Rigid geometry represented by composite of polyhedra (half-edge meshes)
+    - Separating Axis Test for narrow-phase collision detection using Gauss Map optimization
+    - Contact generation using Sutherland-Hodgman clipping algorithm
+    - Extended Position-Based Dynamics (XPBD) with substepping for collision constraint resolution
+    - (Unfinished) implementation of Gilbert-Johnson-Keerthi algorithm to support in narrow-phase collision detection
+
+--------------------------------------------------------------------------------
 Build and Run
 --------------------------------------------------------------------------------
 - if you'd like to build...
